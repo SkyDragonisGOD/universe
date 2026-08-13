@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>世界生成器</title>
+  <link rel="stylesheet" href="styles.css?v=5">
+</head>
+<body>
+  <div id="app">
+    <div id="home-screen" class="screen">
+      <div class="home-header">
+        <h1>🌍 世界生成器</h1>
+        <p class="subtitle">构建属于你的幻想世界</p>
+      </div>
+      <div class="home-actions">
+        <button class="btn btn-primary" id="btn-new-project" onclick="console.log('[HTML] btn-new-project clicked');createProject()">+ 新建世界</button>
+        <button class="btn btn-outline" id="btn-import-project" onclick="console.log('[HTML] btn-import clicked');importProject()">📥 导入项目</button>
+      </div>
+      <div id="project-list" class="project-list"></div>
+    </div>
+
+    <div id="editor-screen" class="screen">
+      <header class="editor-header">
+        <button class="btn btn-sm" id="btn-back-home" onclick="showScreen('home')">← 返回</button>
+        <h2 id="editor-title">世界名称</h2>
+        <div class="header-actions">
+          <button class="btn btn-sm btn-outline" id="btn-save" onclick="saveProject()">💾 保存</button>
+          <button class="btn btn-sm btn-outline" id="btn-export" onclick="exportProject()">📤 导出</button>
+        </div>
+      </header>
+      <div class="editor-body">
+        <nav class="tabs" id="tab-nav"></nav>
+        <main class="editor-content" id="tab-content"></main>
+      </div>
+    </div>
+  </div>
+
+  <div id="modal-overlay" class="modal-overlay hidden">
+    <div class="modal" id="modal-box"></div>
+  </div>
+
+  <script src="../node_modules/gsap/dist/gsap.min.js"></script>
+  <script src="../node_modules/gsap/dist/ScrollTrigger.min.js"></script>
+  <script src="../node_modules/animejs/dist/bundles/anime.umd.min.js"></script>
+  <script src="core/state.js?v=6"></script>
+  <script src="core/utils.js?v=6"></script>
+  <script src="core/animation.js?v=6"></script>
+  <script src="core/modal.js?v=6"></script>
+  <script src="core/glossary.js?v=6"></script>
+  <script src="core/properties.js?v=6"></script>
+  <script src="core/ai.js?v=6"></script>
+  <script src="core/navigation.js?v=6"></script>
+  <script src="modules/overview.js?v=5"></script>
+  <script src="modules/realism.js?v=5"></script>
+  <script src="modules/constitution.js?v=5"></script>
+  <script src="modules/locations.js?v=5"></script>
+  <script src="modules/characters.js?v=5"></script>
+  <script src="modules/relations.js?v=5"></script>
+  <script src="modules/factions.js?v=5"></script>
+  <script src="modules/races.js?v=5"></script>
+  <script src="modules/items.js?v=5"></script>
+  <script src="modules/narrative.js?v=5"></script>
+  <script src="modules/tools.js?v=5"></script>
+  <script src="modules/properties.js?v=5"></script>
+  <script src="modules/init.js?v=5"></script>
+</body>
+</html>

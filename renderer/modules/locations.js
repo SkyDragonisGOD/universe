@@ -1,0 +1,275 @@
+// ============================================================
+// 世界生成器 — 地点
+// 依赖: core/state.js, core/utils.js, core/modal.js, core/glossary.js
+// ============================================================
+
+function renderLocations() {
+  return `<div class="location-layout">
+    <div class="tag-tree-panel"><div class="flex-between mb-8"><h3>🏷️ 标签树</h3><button class="btn btn-xs btn-outline" onclick="addTag(null)">+</button></div>
+      <div class="tag-tree" id="tag-tree">${renderTagTree(state.data.locationTagTree||[],0)}</div></div>
+    <div class="location-panel"><div class="flex-between mb-8"><h3>📍 地点列表</h3><div class="flex-gap"><button class="btn btn-ai btn-sm" onclick="aiGenLocation()">🤖 AI 生成</button><button class="btn btn-sm btn-primary" onclick="addLocation()">+ 添加</button></div></div>
+      <div id="ai-location-result"></div><div id="location-list">${renderLocationList()}</div><div id="location-detail" class="mt-16">${renderLocationDetail()}</div></div></div>`;
+}
+
+function renderTagTree(tags, depth) {
+  if (!tags||tags.length===0) return '<div class="text-xs text-muted" style="padding:8px">暂无标签</div>';
+  return tags.map(t => {
+    const expanded = state.tagExpanded[t.id]!==false;
+    const hasChildren = t.children && t.children.length>0;
+    const locCount = (state.data.locations||[]).filter(l=>(l.tags||[]).includes(t.id)).length;
+    const isLeaf = !hasChildren;
+    const rowClick = isLeaf
+      ? `onclick="state.locationTagFilter='${t.id}';state.selectedLocationId=null;renderTabContent()"`
+      : `onclick="toggleTagExpand('${t.id}')"`;
+    return `<div class="tag-tree-node"><div class="tag-tree-row${isLeaf?' leaf':''}${state.locationTagFilter===t.id?' selected':''}" data-tag-id="${t.id}" style="padding-left:${depth*20+6}px" ${rowClick}>
+      ${hasChildren?`<span class="tag-toggle">${expanded?'▼':'▶'}</span>`:'<span class="tag-toggle"></span>'}
+      <span class="tag-color" style="background:${t.color||'#888'}"></span><span class="${isLeaf?'':'text-muted'}">${esc(t.name)}</span><span class="tag-count">${locCount}</span>
+      <button class="btn btn-xs btn-icon" style="margin-left:4px;font-size:10px" onclick="event.stopPropagation();addTag('${t.id}')">+</button>
+      <button class="btn btn-xs btn-icon btn-danger" style="font-size:10px" onclick="event.stopPropagation();deleteTag('${t.id}')">×</button></div>
+      <div class="tag-tree-children${expanded?' expanded':''}">${renderTagTree(t.children||[],depth+1)}</div></div>`;
+  }).join('');
+}
+
+function renderLocationList() {
+  const allLocs = state.data.locations||[];
+  const tags = state.data.locationTagTree||[];
+  const filter = state.locationTagFilter;
+  const locs = filter ? allLocs.filter(l=>(l.tags||[]).includes(filter)) : allLocs;
+  if (allLocs.length===0) return '<div class="empty-state"><div class="icon">📍</div><p>暂无地点</p></div>';
+  const filterTag = filter ? findTag(tags,filter) : null;
+  return (filter ? `<div class="mb-8" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:var(--warm-gray)"><span>筛选标签：</span><span class="loc-tag-badge"><span class="dot" style="background:${filterTag?.color||'#888'}"></span>${esc(filterTag?.name||'')}</span><button class="btn btn-xs" onclick="clearLocationFilter()">✕ 清除</button></div>`:'')+
+    (locs.length===0?'<div class="empty-state"><div class="icon">🔍</div><p>该标签下暂无地点</p></div>':locs.map(l=>{const locTags=(l.tags||[]).map(tid=>findTag(tags,tid)).filter(Boolean);return`<div class="location-card${state.selectedLocationId===l.id?' selected':''}" data-loc-id="${l.id}"><div class="flex-between"><span class="loc-name">${esc(l.name)}</span><button class="btn btn-xs btn-danger" onclick="event.stopPropagation();deleteLocation('${l.id}')">×</button></div><div class="loc-desc">${esc((l.description||'').slice(0,100))}</div><div class="loc-tags">${locTags.map(t=>`<span class="loc-tag-badge"><span class="dot" style="background:${t.color}"></span>${esc(t.name)}</span>`).join('')}</div></div>`;}).join(''));
+}
+
+function renderLocationDetail() {
+  const loc = (state.data.locations||[]).find(l=>l.id===state.selectedLocationId);
+  if (!loc) return '';
+  if (state.editingLocation) return renderLocationEditForm(loc);
+  return renderLocationWikiView(loc);
+}
+
+function renderLocationWikiView(loc) {
+  const tags = state.data.locationTagTree||[];
+  const characters = collectGlossary('character');
+  const events = collectGlossary('event');
+  const locTags = (loc.tags||[]).map(tid=>findTag(tags,tid)).filter(Boolean);
+  const locCharLinks = _normLinks(loc.relatedCharacters);
+  const locEventLinks = _normLinks(loc.events);
+  const locFactionLinks = _normLinks(loc.relatedFactions);
+  const locChars = locCharLinks.map(cl=>{const ch=characters.find(c=>c.id===cl.id||c.name===cl.id);return ch?{id:ch.id,name:ch.name,_desc:cl.desc}:null;}).filter(Boolean);
+  const locEvents = locEventLinks.map(el=>{const ev=events.find(e=>e.id===el.id||e.name===el.id);return ev?{id:ev.id,name:ev.name,_desc:el.desc}:null;}).filter(Boolean);
+  const locFactions = locFactionLinks.map(fl=>{const fa=(state.data.factions||[]).find(f=>f.id===fl.id);return fa?{id:fa.id,name:fa.name,_desc:fl.desc}:null;}).filter(Boolean);
+  ensurePropertyDefs();
+  const customProps = getCustomPropsForScope('locations');
+  const cpData = loc.customProps || {};
+  const customPropHtml = renderCustomPropWikiHtml(customProps, cpData);
+
+  return `<div class="wiki-page">
+    <div class="wiki-header">
+      <h2 class="wiki-title">📍 ${esc(loc.name)}</h2>
+      <div class="wiki-meta">
+        ${loc.category&&loc.category!=='未知'?`<span class="wiki-badge race" style="cursor:pointer" title="${esc(getCategoryDesc('category',loc.category))}" onclick="openCategoryDetail('category','${esc(loc.category)}')">${esc(loc.category)}</span>`:''}
+        ${locTags.length>0?locTags.map(t=>`<span class="wiki-badge gender"><span class="dot" style="background:${t.color};width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:4px;vertical-align:middle"></span>${esc(t.name)}</span>`).join(''):''}
+      </div>
+      ${customPropHtml?`<div style="margin-top:4px">${customPropHtml}</div>`:''}
+    </div>
+    ${loc.description?`<div class="wiki-section"><div class="wiki-section-title">描述</div><div class="wiki-value">${esc(loc.description)}</div></div>`:''}
+    ${locChars.length>0?`<div class="wiki-section"><div class="wiki-section-title">关联角色</div><div class="wiki-tags">${locChars.map(ch=>{const descArg=ch._desc?`, '${jsStr(ch._desc)}'`:'';return`<span class="wiki-tag skill" onclick="showPreviewCard('character','${esc(ch.id)}',event${descArg})" style="cursor:pointer">${esc(ch.name)}</span>`;}).join('')}</div></div>`:''}
+    ${locEvents.length>0?`<div class="wiki-section"><div class="wiki-section-title">关联事件</div><div class="wiki-tags">${locEvents.map(ev=>{const descArg=ev._desc?`, '${jsStr(ev._desc)}'`:'';return`<span class="wiki-tag item" onclick="showPreviewCard('event','${esc(ev.id)}',event${descArg})" style="cursor:pointer">${esc(ev.name)}</span>`;}).join('')}</div></div>`:''}
+    ${locFactions.length>0?`<div class="wiki-section"><div class="wiki-section-title">关联势力</div><div class="wiki-tags">${locFactions.map(fa=>{const descArg=fa._desc?`, '${jsStr(fa._desc)}'`:'';return`<span class="wiki-tag item" onclick="showPreviewCard('faction','${esc(fa.id)}',event${descArg})" style="cursor:pointer">${esc(fa.name)}</span>`;}).join('')}</div></div>`:''}
+    ${_normLinks(loc.relatedVolumes).length>0?`<div class="wiki-section"><div class="wiki-section-title">📑 关联卷</div><div class="wiki-tags">${_normLinks(loc.relatedVolumes).map(vl=>{const vol=(state.data.outline||[]).find((v,i)=>i===parseInt(vl.id)||v.id===vl.id);return vol?`<span class="wiki-tag item">📖 ${esc(vol.title||'未命名卷')}</span>`:`<span class="wiki-tag item">${esc(vl.id)}</span>`;}).join('')}</div></div>`:''}
+    <div class="flex-between" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+      <button class="btn btn-sm btn-outline" onclick="if(state.navigationHistory.length>0)goBack();else{state.selectedLocationId=null;renderTabContent()}">← 返回</button>
+      <div class="flex-gap">
+        <button class="btn btn-sm btn-danger" onclick="deleteLocation('${loc.id}')">🗑️ 删除</button>
+        <button class="btn btn-sm btn-primary" onclick="startLocationEdit()">✏️ 编辑</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderLocationEditForm(loc) {
+  const characters = collectGlossary('character');
+  const events = collectGlossary('event');
+  const factions = collectGlossary('faction');
+  ensurePropertyDefs();
+  const customProps = getCustomPropsForScope('locations');
+  if (!loc.customProps) loc.customProps = {};
+  return `<div class="card">
+    <div class="form-row"><div class="form-group"><label>名称</label><input value="${esc(loc.name)}" onchange="updateLocation('name',this.value)"></div>
+    <div class="form-group"><label>分类</label>${renderCategorySelect(loc.category||'','category',"updateLocation('category',this.value)")}</div></div>
+    <div class="form-group"><label>描述</label><textarea rows="3" onchange="updateLocation('description',this.value)">${esc(loc.description||'')}</textarea></div>
+    <div class="form-group"><label>关联标签</label><div class="category-list" id="loc-tag-select">${renderTagCheckboxes(state.data.locationTagTree||[],loc.tags||[],0)}</div></div>
+    ${customProps.map(prop => {
+      const key = 'cp_' + prop.id;
+      const val = loc.customProps[key] || '';
+      return renderCustomPropField(prop, val, `setLocationCustomProp('${prop.id}',this.value)`);
+    }).join('')}
+    <div class="card"><h4>关联</h4>
+      <div class="form-group"><label>关联角色</label>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="text-xs text-muted">已选 ${_normLinks(loc.relatedCharacters).length} 人</span>
+          <button class="btn btn-xs btn-outline" onclick="openLocCharSelectModal()">选择角色</button>
+        </div>
+        ${_normLinks(loc.relatedCharacters).length > 0 ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${_normLinks(loc.relatedCharacters).map(cl => {
+          const ch = characters.find(c=>c.id===cl.id);
+          const descHtml = cl.desc ? `<span style="font-size:11px;color:var(--text-muted)">(${esc(cl.desc)})</span>` : '';
+          return ch ? `<span class="wiki-tag skill">${esc(ch.name)}${descHtml}<button class="btn btn-xs btn-icon btn-danger" style="font-size:8px;margin-left:2px" onclick="removeLocChar('${esc(cl.id)}')">×</button></span>` : '';
+        }).join('')}</div>` : ''}
+      </div>
+      <div class="form-group"><label>关联事件</label>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="text-xs text-muted">已选 ${_normLinks(loc.events).length} 个</span>
+          <button class="btn btn-xs btn-outline" onclick="openLocEventSelectModal()">选择事件</button>
+        </div>
+        ${_normLinks(loc.events).length > 0 ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${_normLinks(loc.events).map(el => {
+          const ev = events.find(e=>e.id===el.id);
+          const descHtml = el.desc ? `<span style="font-size:11px;color:var(--text-muted)">(${esc(el.desc)})</span>` : '';
+          return ev ? `<span class="wiki-tag item">${esc(ev.name)}${descHtml}<button class="btn btn-xs btn-icon btn-danger" style="font-size:8px;margin-left:2px" onclick="removeLocEvent('${esc(el.id)}')">×</button></span>` : '';
+        }).join('')}</div>` : ''}
+      </div>
+      <div class="form-group"><label>关联势力</label>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="text-xs text-muted">已选 ${_normLinks(loc.relatedFactions).length} 个</span>
+          <button class="btn btn-xs btn-outline" onclick="openLocFactionSelectModal()">选择势力</button>
+        </div>
+        ${_normLinks(loc.relatedFactions).length > 0 ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${_normLinks(loc.relatedFactions).map(fl => {
+          const fa = (state.data.factions||[]).find(f=>f.id===fl.id);
+          const descHtml = fl.desc ? `<span style="font-size:11px;color:var(--text-muted)">(${esc(fl.desc)})</span>` : '';
+          return fa ? `<span class="wiki-tag item"><span class="dot" style="background:${fa.color||'#888'};width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px"></span>${esc(fa.name)}${descHtml}<button class="btn btn-xs btn-icon btn-danger" style="font-size:8px;margin-left:2px" onclick="removeLocFaction('${esc(fl.id)}')">×</button></span>` : '';
+        }).join('')}</div>` : ''}
+      </div>
+      <div class="form-group"><label>关联卷</label>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span class="text-xs text-muted">已选 ${_normLinks(loc.relatedVolumes).length} 个</span>
+          <button class="btn btn-xs btn-outline" onclick="openLocVolumeModal()">选择卷</button>
+        </div>
+        ${_normLinks(loc.relatedVolumes).length>0?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${_normLinks(loc.relatedVolumes).map(vl=>{const vol=(state.data.outline||[]).find((v,i)=>i===parseInt(vl.id)||v.id===vl.id);return vol?`<span class="wiki-tag item">📖 ${esc(vol.title||'未命名卷')}<button class="btn btn-xs btn-icon btn-danger" style="font-size:8px;margin-left:2px" onclick="removeLocVolume('${esc(vl.id)}')">×</button></span>`:'';}).join('')}</div>`:''}
+      </div>
+    </div>
+    <div class="flex-between" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+      <div></div>
+      <div class="flex-gap">
+        <button class="btn btn-sm btn-outline" onclick="cancelLocationEdit()">取消</button>
+        <button class="btn btn-sm btn-primary" onclick="saveLocationEdit()">💾 保存</button>
+      </div>
+    </div></div>`;
+}
+
+let _locEditSnapshot = null;
+let _locIsNew = false;
+function startLocationEdit() {
+  const loc = (state.data.locations||[]).find(l=>l.id===state.selectedLocationId);
+  if (loc) _locEditSnapshot = JSON.parse(JSON.stringify(loc));
+  _locIsNew = false;
+  state.editingLocation = true; state._forceAnimate=true; state._animateScope='detail'; renderTabContent();
+}
+function saveLocationEdit() { _locEditSnapshot = null; _locIsNew = false; state.editingLocation = false; autoSave(); renderTabContent(); }
+function cancelLocationEdit() {
+  if (_locIsNew) {
+    state.data.locations = (state.data.locations||[]).filter(l=>l.id!==state.selectedLocationId);
+    state.selectedLocationId = null;
+    _locIsNew = false;
+    _locEditSnapshot = null;
+    autoSave(); renderTabContent(); return;
+  }
+  if (_locEditSnapshot) {
+    const loc = (state.data.locations||[]).find(l=>l.id===state.selectedLocationId);
+    if (loc) Object.assign(loc, _locEditSnapshot);
+    _locEditSnapshot = null;
+  }
+  state.editingLocation = false; renderTabContent();
+}
+
+function removeLocChar(cid) { const loc=(state.data.locations||[]).find(l=>l.id===state.selectedLocationId); if (!loc) return; const oldIds=_linkIds(loc.relatedCharacters); loc.relatedCharacters=_removeLink(loc.relatedCharacters,cid); syncLink('location',loc.id,'relatedCharacters',_linkIds(loc.relatedCharacters),'',oldIds); autoSave(); if (state.editingLocation) { const detail=$('#location-detail'); if(detail) detail.innerHTML=renderLocationEditForm(loc); } }
+function removeLocEvent(eid) { const loc=(state.data.locations||[]).find(l=>l.id===state.selectedLocationId); if (!loc) return; const oldIds=_linkIds(loc.events); loc.events=_removeLink(loc.events,eid); syncLink('location',loc.id,'events',_linkIds(loc.events),'',oldIds); autoSave(); if (state.editingLocation) { const detail=$('#location-detail'); if(detail) detail.innerHTML=renderLocationEditForm(loc); } }
+function removeLocFaction(fid) { const loc=(state.data.locations||[]).find(l=>l.id===state.selectedLocationId); if (!loc) return; const oldIds=_linkIds(loc.relatedFactions); loc.relatedFactions=_removeLink(loc.relatedFactions,fid); syncLink('location',loc.id,'relatedFactions',_linkIds(loc.relatedFactions),'',oldIds); autoSave(); if (state.editingLocation) { const detail=$('#location-detail'); if(detail) detail.innerHTML=renderLocationEditForm(loc); } }
+
+async function openLocVolumeModal() {
+  const loc=(state.data.locations||[]).find(l=>l.id===state.selectedLocationId); if (!loc) return;
+  const outline=state.data.outline||[];
+  if(outline.length===0){alert('暂无卷');return;}
+  const volItems=outline.map((v,i)=>({id:String(i),name:v.title||('第'+(i+1)+'卷')}));
+  const existingIds=_normLinks(loc.relatedVolumes||[]).map(l=>l.id);
+  const result=await customSelectModal('📑 选择关联卷',volItems,existingIds);
+  if(result===null) return;
+  if(!loc.relatedVolumes) loc.relatedVolumes=[];
+  loc.relatedVolumes=result.map(id=>({id}));
+  autoSave();
+  if(state.editingLocation){const d=$('#location-detail');if(d)d.innerHTML=renderLocationEditForm(loc);}else{renderTabContent();}
+}
+function removeLocVolume(id) {
+  const loc=(state.data.locations||[]).find(l=>l.id===state.selectedLocationId); if (!loc) return;
+  loc.relatedVolumes=_normLinks(loc.relatedVolumes||[]).filter(l=>l.id!==id).map(l=>({id:l.id,desc:l.desc}));
+  autoSave();
+  if(state.editingLocation){const d=$('#location-detail');if(d)d.innerHTML=renderLocationEditForm(loc);}else{renderTabContent();}
+}
+
+async function openLocCharSelectModal() {
+  const loc = (state.data.locations||[]).find(l=>l.id===state.selectedLocationId);
+  if (!loc) return;
+  const characters = collectGlossary('character');
+  if (characters.length === 0) { alert('暂无角色'); return; }
+  const result = await customLinkModal('选择关联角色', characters, loc.relatedCharacters||[], '简述关系');
+  if (result === null) return;
+  const oldIds=_linkIds(loc.relatedCharacters);
+  loc.relatedCharacters = result;
+  const newIds=result.map(r=>r.id);
+  syncLink('location',loc.id,'relatedCharacters',newIds,'',oldIds);
+  autoSave();
+  if (state.editingLocation) { const detail=$('#location-detail'); if(detail) detail.innerHTML=renderLocationEditForm(loc); } else { renderTabContent(); }
+}
+
+function renderTagCheckboxes(tags, selectedIds, depth) {
+  if (!tags||tags.length===0) return '';
+  const uid2 = 'tc_'+Math.random().toString(36).slice(2,8);
+  return tags.map((t,i)=>{const cbId=uid2+'_'+i;const hasChildren=t.children&&t.children.length>0;const isLeaf=!hasChildren;return`<div style="padding-left:${depth*16}px"><label class="category-tag${selectedIds.includes(t.id)?' active':''}" style="cursor:${isLeaf?'pointer':'default'};margin:2px 0;opacity:${isLeaf?1:0.5}" for="${cbId}"><input type="checkbox" id="${cbId}" ${isLeaf?'':'disabled'} ${selectedIds.includes(t.id)?'checked':''} onchange="toggleLocationTag('${t.id}',this.checked)" style="position:absolute;opacity:0;pointer-events:none"><span class="tag-color" style="background:${t.color||'#888'};width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px"></span>${esc(t.name)}${hasChildren?' <span class="text-xs text-muted">(父级)</span>':''}</label>${renderTagCheckboxes(t.children||[],selectedIds,depth+1)}</div>`;}).join('');
+}
+
+function findTag(tags,id) { for (const t of tags) { if (t.id===id) return t; if (t.children) { const f=findTag(t.children,id); if (f) return f; } } return null; }
+
+function setupLocations() {
+  const locList = $('#location-list');
+  if (locList) { locList.querySelectorAll('.location-card').forEach(c=>{c.onclick=()=>{state.selectedLocationId=c.dataset.locId;state.editingLocation=false;state._forceAnimate=true;state._animateScope='detail';renderTabContent();};});}
+}
+
+function toggleTagExpand(tagId) { state.tagExpanded[tagId]=state.tagExpanded[tagId]===false; renderTabContent(); }
+function clearLocationFilter() { state.locationTagFilter=null; renderTabContent(); }
+async function addTag(parentId) { const name=await customPrompt('标签名称',''); if (!name) return; const newTag={id:uid(),name,color:TAG_COLORS[Math.floor(Math.random()*TAG_COLORS.length)],children:[]}; if (parentId) { const parent=findTag(state.data.locationTagTree,parentId); if (parent) { if (!parent.children) parent.children=[]; parent.children.push(newTag); } } else { state.data.locationTagTree.push(newTag); } autoSave(); renderTabContent(); }
+async function deleteTag(id) { if (!await customConfirm('删除此标签？')) return; state.data.locationTagTree=removeTagFromTree(state.data.locationTagTree,id); (state.data.locations||[]).forEach(l=>{l.tags=(l.tags||[]).filter(tid=>tid!==id);}); autoSave(); renderTabContent(); }
+function removeTagFromTree(tags,id) { return tags.filter(t=>t.id!==id).map(t=>({...t,children:removeTagFromTree(t.children||[],id)})); }
+function toggleLocationTag(tagId,checked) { const loc=(state.data.locations||[]).find(l=>l.id===state.selectedLocationId); if (!loc) return; if (!loc.tags) loc.tags=[]; if (checked) { if (!loc.tags.includes(tagId)) loc.tags.push(tagId); } else { loc.tags=loc.tags.filter(t=>t!==tagId); } autoSave(); if (state.editingLocation) { const detail=$('#location-detail'); if(detail) detail.innerHTML=renderLocationEditForm(loc); } else { renderTabContent(); } }
+function addLocation() { let base='新地点',n=1; while((state.data.locations||[]).some(l=>l.name===base)){base='新地点'+(++n);} const loc={id:uid(),name:base,description:'',category:'',tags:[],relatedCharacters:[],events:[],relatedFactions:[],relatedVolumes:[],customProps:{}}; state.data.locations.push(loc); state.selectedLocationId=loc.id; state.editingLocation=true; _locIsNew=true; autoSave(); state._forceAnimate=true; state._animateScope='detail'; renderTabContent(); }
+async function aiGenLocation() { const el=$('#ai-location-result'); const text=await runAI(window.api.aiGenerateLocation(state.data),el); if (text) { const json=tryParseJSON(text); if (json&&json.name) { const loc={id:uid(),name:json.name,description:json.description||'',category:json.category||'',tags:json.tags||[],relatedCharacters:json.relatedCharacters||[],events:json.events||[],relatedFactions:[],customProps:{}}; state.data.locations.push(loc); state.selectedLocationId=loc.id; autoSave(); renderTabContent(); } } }
+function updateLocation(key,value) { const loc=(state.data.locations||[]).find(l=>l.id===state.selectedLocationId); if (loc) { if (key==='name'&&checkDuplicate(state.data.locations,value,loc.id)){alert('已存在同名地点！');renderTabContent();return;} loc[key]=value; autoSave(); } }
+function setLocationCustomProp(propId, value) { const loc=(state.data.locations||[]).find(l=>l.id===state.selectedLocationId); if (!loc) return; if (!loc.customProps) loc.customProps = {}; loc.customProps['cp_'+propId] = value; autoSave(); }
+
+async function openLocEventSelectModal() {
+  const loc=(state.data.locations||[]).find(l=>l.id===state.selectedLocationId);
+  if (!loc) return;
+  const events = collectGlossary('event');
+  if (events.length===0){alert('暂无事件');return;}
+  const result = await customLinkModal('选择关联事件', events, loc.events||[], '简述关系');
+  if (result===null) return;
+  const oldIds=_linkIds(loc.events);
+  loc.events = result;
+  const newIds=result.map(r=>r.id);
+  syncLink('location',loc.id,'events',newIds,'',oldIds);
+  autoSave(); if (state.editingLocation) { const detail=$('#location-detail'); if(detail) detail.innerHTML=renderLocationEditForm(loc); } else { renderTabContent(); }
+}
+
+async function openLocFactionSelectModal() {
+  const loc=(state.data.locations||[]).find(l=>l.id===state.selectedLocationId);
+  if (!loc) return;
+  const factions = collectGlossary('faction');
+  if (factions.length===0){alert('暂无势力');return;}
+  const result = await customLinkModal('选择关联势力', factions, loc.relatedFactions||[], '简述关系');
+  if (result===null) return;
+  const oldIds=_linkIds(loc.relatedFactions);
+  loc.relatedFactions = result;
+  const newIds=result.map(r=>r.id);
+  syncLink('location',loc.id,'relatedFactions',newIds,'',oldIds);
+  autoSave(); if (state.editingLocation) { const detail=$('#location-detail'); if(detail) detail.innerHTML=renderLocationEditForm(loc); } else { renderTabContent(); }
+}
+
+async function deleteLocation(id) { if (!await customConfirm('确定删除此地？')) return; state.data.locations=(state.data.locations||[]).filter(l=>l.id!==id); if (state.selectedLocationId===id) state.selectedLocationId=null; autoSave(); renderTabContent(); }

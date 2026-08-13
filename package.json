@@ -1,0 +1,45 @@
+{
+  "name": "world-generator",
+  "version": "1.0.0",
+  "description": "世界生成器 - 世界观构建工具",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --win portable",
+    "build:installer": "electron-builder --win"
+  },
+  "build": {
+    "appId": "com.worldgenerator.app",
+    "productName": "世界生成器",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        "portable",
+        "nsis"
+      ],
+      "icon": "icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "files": [
+      "main.js",
+      "preload.js",
+      "renderer/**/*"
+    ]
+  },
+  "devDependencies": {
+    "electron": "^35.7.5",
+    "electron-builder": "^25.0.0"
+  },
+  "allowScripts": {
+    "electron@35.7.5": true
+  },
+  "dependencies": {
+    "animejs": "^4.5.0",
+    "gsap": "^3.15.0"
+  }
+}
