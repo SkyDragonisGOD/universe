@@ -6,8 +6,21 @@
 function renderRaces() {
   const races = state.data.races||[];
   const selectedRace = races.find(r=>r.id===state.selectedRaceId);
+  const raceRelDefs = [
+    { key:'character', label:'角色', field:'relatedCharacters', getItems:()=>collectGlossary('character') },
+    { key:'location', label:'地点', field:'regions', getItems:()=>collectGlossary('location') },
+    { key:'event', label:'事件', field:'relatedEvents', getItems:()=>(state.data.timeline||[]).map(e=>({id:e.id,name:e.name||e.title||'未命名'})) },
+  ];
+  const raceRelMatchDefs = [
+    { key:'character', field:'relatedCharacters' },
+    { key:'location', field:'regions' },
+    { key:'event', field:'relatedEvents' },
+  ];
+  const filtered = races.filter(r => matchRelFilter(r, 'raceRelFilter', raceRelMatchDefs));
   return `<div class="item-layout"><div class="item-list-panel"><div class="flex-between mb-8"><h3>🧬 种族</h3><button class="btn btn-sm btn-primary" onclick="addRace()">+ 新建种族</button></div>
-    <div id="race-list">${races.length===0?'<div class="empty-state"><div class="icon">🧬</div><p>暂无种族</p></div>':races.map(r=>`<div class="item-list-item${state.selectedRaceId===r.id?' selected':''}" data-race-id="${r.id}"><span class="race-drag-handle" style="cursor:grab;font-size:10px;color:var(--warm-gray);margin-right:4px;user-select:none" title="拖拽排序">⠿</span><span class="item-icon">🧬</span><span>${esc(r.name)}</span></div>`).join('')}</div></div>
+    ${renderSearchBox('raceSearch')}
+    ${renderRelFilter('raceRelFilter', raceRelDefs)}
+    <div id="race-list">${filtered.length===0?'<div class="empty-state"><div class="icon">🧬</div><p>暂无种族</p></div>':filtered.filter(r=>matchSearch(r.name,'raceSearch')).map(r=>`<div class="item-list-item${state.selectedRaceId===r.id?' selected':''}" data-race-id="${r.id}"><span class="race-drag-handle" style="cursor:grab;font-size:10px;color:var(--warm-gray);margin-right:4px;user-select:none" title="拖拽排序">⠿</span><span class="item-icon">🧬</span><span>${esc(r.name)}</span></div>`).join('')}</div></div>
     <div class="item-detail-panel"><div id="race-detail">${selectedRace ? (state.editingRace ? renderRaceEditForm(selectedRace) : renderRaceWikiView(selectedRace)) : '<div class="empty-state"><div class="icon">👆</div><p>选择左侧种族查看详情</p></div>'}</div></div></div>`;
 }
 
@@ -23,7 +36,7 @@ function renderRaceWikiView(race) {
   const regionLinks = _normLinks(race.regions);
   const charLinks = _normLinks(race.relatedCharacters);
 
-  return `<div class="wiki-page">
+  return `<div class="wiki-page detail-scroll-area">
     <div class="wiki-header">
       <h2 class="wiki-title">🧬 ${esc(race.name)}</h2>
       <div class="wiki-meta">
@@ -47,12 +60,12 @@ function renderRaceWikiView(race) {
     ${race.description?`<div class="wiki-section"><div class="wiki-section-title">描述</div><div class="wiki-value">${esc(race.description)}</div></div>`:''}
     ${_normLinks(race.relatedEvents).length>0?`<div class="wiki-section"><div class="wiki-section-title">关联事件</div><div class="wiki-tags">${_normLinks(race.relatedEvents).map(el=>{const ev=(state.data.timeline||[]).find(e=>e.id===el.id);const descArg=el.desc?`, '${jsStr(el.desc)}'`:'';return ev?`<span class="wiki-tag item" onclick="showPreviewCard('event','${esc(ev.id)}',event${descArg})" style="cursor:pointer">${esc(ev.name)}</span>`:`<span class="wiki-tag item">${esc(el.id)}</span>`;}).join('')}</div></div>`:''}
     ${_normLinks(race.relatedVolumes).length>0?`<div class="wiki-section"><div class="wiki-section-title">📑 关联卷</div><div class="wiki-tags">${_normLinks(race.relatedVolumes).map(vl=>{const vol=(state.data.outline||[]).find((v,i)=>i===parseInt(vl.id)||v.id===vl.id);return vol?`<span class="wiki-tag item">📖 ${esc(vol.title||'未命名卷')}</span>`:`<span class="wiki-tag item">${esc(vl.id)}</span>`;}).join('')}</div></div>`:''}
-    <div class="flex-between" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-      <button class="btn btn-sm btn-outline" onclick="if(state.navigationHistory.length>0)goBack();else{state.selectedRaceId=null;renderTabContent()}">← 返回</button>
-      <div class="flex-gap">
-        <button class="btn btn-sm btn-danger" onclick="deleteRace('${race.id}')">🗑️ 删除</button>
-        <button class="btn btn-sm btn-primary" onclick="startRaceEdit()">✏️ 编辑</button>
-      </div>
+  </div>
+  <div class="detail-sticky-bar">
+    <button class="btn btn-sm btn-outline" onclick="if(state.navigationHistory.length>0)goBack();else{state.selectedRaceId=null;renderTabContent()}">← 返回</button>
+    <div class="flex-gap">
+      <button class="btn btn-sm btn-danger" onclick="deleteRace('${race.id}')">🗑️ 删除</button>
+      <button class="btn btn-sm btn-primary" onclick="startRaceEdit()">✏️ 编辑</button>
     </div>
   </div>`;
 }
@@ -65,7 +78,7 @@ function renderRaceEditForm(race) {
   if (!race.customProps) race.customProps = {};
   const regionLinks = _normLinks(race.regions);
   const charLinks = _normLinks(race.relatedCharacters);
-  return `<div class="card">
+  return `<div class="card detail-scroll-area">
     <div class="form-row"><div class="form-group"><label>名称</label><input value="${esc(race.name)}" onchange="updateRace('name',this.value)"></div>
     <div class="form-group"><label>分类</label>${renderCategorySelect(race.category||'','raceCategory',"updateRace('category',this.value)")}</div></div>
     <div class="form-row"><div class="form-group"><label>寿命</label><input value="${esc(race.lifespan||'')}" onchange="updateRace('lifespan',this.value)" placeholder="如：200年/永生"></div>
@@ -110,13 +123,14 @@ function renderRaceEditForm(race) {
       ${_normLinks(race.relatedEvents).length>0?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${_normLinks(race.relatedEvents).map(el=>{const ev=(state.data.timeline||[]).find(e=>e.id===el.id);return ev?`<span class="wiki-tag item">⚡ ${esc(ev.name)}<button class="btn btn-xs btn-icon btn-danger" style="font-size:8px;margin-left:2px" onclick="removeRaceEvent('${esc(el.id)}')">×</button></span>`:'';}).join('')}</div>`:''}
     </div>
     <div class="form-group"><label>描述</label><textarea rows="3" onchange="updateRace('description',this.value)">${esc(race.description||'')}</textarea></div>
-    <div class="flex-between" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-      <div></div>
-      <div class="flex-gap">
-        <button class="btn btn-sm btn-outline" onclick="cancelRaceEdit()">取消</button>
-        <button class="btn btn-sm btn-primary" onclick="saveRaceEdit()">💾 保存</button>
-      </div>
-    </div></div>`;
+  </div>
+  <div class="detail-sticky-bar">
+    <div></div>
+    <div class="flex-gap">
+      <button class="btn btn-sm btn-outline" onclick="cancelRaceEdit()">取消</button>
+      <button class="btn btn-sm btn-primary" onclick="saveRaceEdit()">💾 保存</button>
+    </div>
+  </div>`;
 }
 
 let _raceEditSnapshot = null;
@@ -231,6 +245,7 @@ async function openRaceCharSelectModal() {
 async function deleteRace(id) { if (!await customConfirm('确定删除此种族？')) return; state.data.races=(state.data.races||[]).filter(r=>r.id!==id); if (state.selectedRaceId===id) state.selectedRaceId=null; autoSave(); renderTabContent(); }
 
 function setupRaces() {
+  registerSearchTarget('raceSearch','race-list',()=>{const races=state.data.races||[];const raceRelMatchDefs=[{key:'character',field:'relatedCharacters'},{key:'location',field:'regions'},{key:'event',field:'relatedEvents'}];const filtered=races.filter(r=>matchRelFilter(r,'raceRelFilter',raceRelMatchDefs)).filter(r=>matchSearch(r.name,'raceSearch'));return filtered.length===0?'<div class="empty-state"><div class="icon">🧬</div><p>暂无种族</p></div>':filtered.map(r=>`<div class="item-list-item${state.selectedRaceId===r.id?' selected':''}" data-race-id="${r.id}"><span class="race-drag-handle" style="cursor:grab;font-size:10px;color:var(--warm-gray);margin-right:4px;user-select:none" title="拖拽排序">⠿</span><span class="item-icon">🧬</span><span>${esc(r.name)}</span></div>`).join('');});
   const list = $('#race-list');
   if (!list) return;
   list.querySelectorAll('.item-list-item').forEach(item=>{

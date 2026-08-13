@@ -6,26 +6,99 @@
 function renderRelations() {
   const rels = state.data.characterRelations||[];
   const chars = state.data.characters||[];
-  return `<div class="card"><h3>🕸️ 角色关系图</h3>
-    <div class="ai-section-actions"><button class="btn btn-ai btn-sm" onclick="aiGenRelations()">🤖 AI 生成关系</button><button class="btn btn-sm btn-primary" onclick="addRelation()">+ 添加关系</button></div>
-    <div id="ai-relations-result"></div>
-    <div class="relations-canvas-container"><canvas id="relations-canvas" width="800" height="400"></canvas></div></div>
-    <div class="card"><h3>📋 关系列表</h3><div class="relations-list">${rels.length===0?'<div class="empty-state"><div class="icon">🕸️</div><p>暂无关系</p></div>':rels.map((r,i)=>renderRelationItem(r,i,chars)).join('')}</div></div>`;
+  const relFilterDefs = [
+    { key:'character', label:'角色', field:'sourceId', getItems:()=>chars.map(c=>({id:c.id,name:c.name||'未命名'})) },
+    { key:'type', label:'类型', field:'type', getItems:()=>{const types=[...new Set(rels.map(r=>r.type).filter(Boolean))];return types.map(t=>({id:t,name:t}));} },
+  ];
+  return `<div class="relation-layout">
+    <div class="relation-list-panel">
+      <div class="flex-between mb-8"><h3>📋 关系列表</h3><div class="flex-gap"><button class="btn btn-ai btn-sm" onclick="aiGenRelations()">🤖 AI 生成</button><button class="btn btn-sm btn-primary" onclick="addRelation()">+ 新建</button></div></div>
+      ${renderSearchBox('relSearch')}
+      ${renderRelFilter('relRelFilter', relFilterDefs)}
+      <div id="ai-relations-result"></div>
+      <div id="relation-list" class="relations-list">${renderRelationList()}</div>
+    </div>
+    <div class="relation-detail-panel">
+      <div class="card"><h3>🕸️ 角色关系图</h3>
+        <div class="relations-canvas-container"><canvas id="relations-canvas" width="800" height="400"></canvas></div></div>
+      <div id="relation-detail"></div>
+    </div></div>`;
 }
 
-function renderRelationItem(r,i,chars) {
+function renderRelationList() {
+  const rels = state.data.characterRelations||[];
+  const chars = state.data.characters||[];
+  if (rels.length===0) return '<div class="empty-state"><div class="icon">🕸️</div><p>暂无关系</p></div>';
+  const filtered = rels.filter(r => {
+    const f = state.relRelFilter;
+    if (!f) return true;
+    const charIds = f.character || [];
+    const typeIds = f.type || [];
+    if (charIds.length > 0 && !charIds.includes(r.sourceId) && !charIds.includes(r.targetId)) return false;
+    if (typeIds.length > 0 && !typeIds.includes(r.type)) return false;
+    return true;
+  }).filter(r => {
+    const q = (state.relSearch || '').toLowerCase().trim();
+    if (!q) return true;
+    const source = chars.find(c=>c.id===r.sourceId);
+    const target = chars.find(c=>c.id===r.targetId);
+    return (source?.name||'').toLowerCase().includes(q) || (target?.name||'').toLowerCase().includes(q) || (r.type||'').toLowerCase().includes(q);
+  });
+  if (filtered.length===0) return '<div class="empty-state"><div class="icon">🔍</div><p>无匹配关系</p></div>';
+  return filtered.map((r,i) => {
+    const source = chars.find(c=>c.id===r.sourceId);
+    const target = chars.find(c=>c.id===r.targetId);
+    const isSelected = state.selectedRelationId === r.id;
+    return `<div class="relation-item${isSelected?' selected':''}" data-rel-id="${esc(r.id)}" onclick="selectRelation('${esc(r.id)}')">
+      <div class="relation-connector"><span class="relation-char">${esc(source?.name||'未知')}</span>
+        <span class="relation-arrow">——${esc(r.type||'关系')}——→</span><span class="relation-char">${esc(target?.name||'未知')}</span></div>
+      ${r.description ? `<div class="relation-desc">${esc(r.description)}</div>` : ''}
+      <div class="relation-actions">
+        <input value="${esc(r.type||'')}" onchange="updateRelation(${i},'type',this.value)" onclick="event.stopPropagation()" placeholder="关系类型" style="padding:3px 6px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:12px;font-family:var(--font-body);width:70px">
+        <button class="btn btn-xs btn-danger" onclick="event.stopPropagation();deleteRelation(${i})">×</button></div></div>`;
+  }).join('');
+}
+
+function selectRelation(id) {
+  state.selectedRelationId = id;
+  const list = $('#relation-list');
+  if (list) list.innerHTML = renderRelationList();
+  const detail = $('#relation-detail');
+  if (detail) detail.innerHTML = renderRelationDetail();
+}
+
+function renderRelationDetail() {
+  const rels = state.data.characterRelations||[];
+  const chars = state.data.characters||[];
+  const r = rels.find(rel => rel.id === state.selectedRelationId);
+  if (!r) return '<div class="empty-state"><div class="icon">👆</div><p>选择左侧关系查看详情</p></div>';
   const source = chars.find(c=>c.id===r.sourceId);
   const target = chars.find(c=>c.id===r.targetId);
-  return `<div class="relation-item">
-    <div class="relation-connector"><span class="relation-char">${esc(source?.name||'未知')}</span>
-      <span class="relation-arrow" style="color:var(--accent)">——${esc(r.type||'关系')}——→</span><span class="relation-char">${esc(target?.name||'未知')}</span></div>
-    ${r.description ? `<div class="relation-desc">${esc(r.description)}</div>` : ''}
-    <div class="relation-actions">
-      <input value="${esc(r.type||'')}" onchange="updateRelation(${i},'type',this.value)" placeholder="关系类型" style="padding:4px 8px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:13px;font-family:var(--font-body);width:100px">
-      <button class="btn btn-xs btn-danger" onclick="deleteRelation(${i})">×</button></div></div>`;
+  return `<div class="card detail-scroll-area">
+    <div style="display:flex;align-items:center;gap:12px;font-size:16px;font-weight:500;margin-bottom:12px">
+      <span style="cursor:pointer;color:var(--accent)" onclick="showPreviewCard('character','${esc(r.sourceId)}',event)">${esc(source?.name||'未知')}</span>
+      <span style="color:var(--warm-gray)">——${esc(r.type||'关系')}——→</span>
+      <span style="cursor:pointer;color:var(--accent)" onclick="showPreviewCard('character','${esc(r.targetId)}',event)">${esc(target?.name||'未知')}</span>
+    </div>
+    ${r.description ? `<div class="wiki-section"><div class="wiki-section-title">描述</div><p style="font-size:14px;line-height:1.6">${esc(r.description)}</p></div>` : ''}
+    <div class="wiki-section"><div class="wiki-section-title">编辑</div>
+      <div class="form-group"><label>关系类型</label><input value="${esc(r.type||'')}" onchange="updateRelationById('${esc(r.id)}','type',this.value)" style="width:100%;padding:8px 12px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:var(--font-body)"></div>
+      <div class="form-group"><label>描述</label><textarea onchange="updateRelationById('${esc(r.id)}','description',this.value)" rows="3" style="width:100%;padding:8px 12px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:var(--font-body);resize:vertical">${esc(r.description||'')}</textarea></div>
+    </div>
+  </div>
+  <div class="detail-sticky-bar">
+    <div></div>
+    <button class="btn btn-sm btn-danger" onclick="deleteRelationById('${esc(r.id)}')">🗑️ 删除此关系</button>
+  </div>`;
 }
 
-function setupRelations() { try { drawRelationsGraph(); } catch(e) { console.error('drawRelationsGraph error:', e); } }
+function updateRelationById(id, key, value) {
+  const rels = state.data.characterRelations||[];
+  const r = rels.find(rel => rel.id === id);
+  if (r) { r[key] = value; autoSave(); }
+}
+
+function setupRelations() { registerSearchTarget('relSearch','relation-list',renderRelationList); try { drawRelationsGraph(); } catch(e) { console.error('drawRelationsGraph error:', e); } }
 
 function drawRelationsGraph() {
   const canvas = $('#relations-canvas');
@@ -86,3 +159,4 @@ async function aiGenRelations() {
 
 function updateRelation(i, key, value) { if (state.data.characterRelations[i]) { state.data.characterRelations[i][key] = value; autoSave(); } }
 async function deleteRelation(i) { if (!await customConfirm('删除此关系？')) return; state.data.characterRelations.splice(i, 1); autoSave(); if (state.editingCharacter) { const c=(state.data.characters||[]).find(ch=>ch.id===state.selectedCharacterId); if(c){const d=$('#char-detail');if(d)d.innerHTML=renderCharEditForm(c);} } else { renderTabContent(); } }
+async function deleteRelationById(id) { if (!await customConfirm('删除此关系？')) return; const idx = (state.data.characterRelations||[]).findIndex(r=>r.id===id); if (idx>=0) { state.data.characterRelations.splice(idx,1); autoSave(); state.selectedRelationId=null; renderTabContent(); } }

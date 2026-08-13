@@ -4,16 +4,31 @@
 // ============================================================
 
 function renderFactions() {
+  const factionRelDefs = [
+    { key:'character', label:'角色', field:'members', getItems:()=>collectGlossary('character') },
+    { key:'location', label:'地点', fields:['headquarters'], getItems:()=>collectGlossary('location') },
+    { key:'faction', label:'势力', fields:['rivals','allies'], getItems:()=>(state.data.factions||[]).map(f=>({id:f.id,name:f.name||'未命名'})) },
+    { key:'event', label:'事件', field:'relatedEvents', getItems:()=>(state.data.timeline||[]).map(e=>({id:e.id,name:e.name||e.title||'未命名'})) },
+  ];
   return `<div class="faction-layout">
-    <div class="faction-list-panel"><div class="flex-between mb-8"><h3>🏰 势力列表</h3><div class="flex-gap"><button class="btn btn-ai btn-sm" onclick="aiGenFaction()">🤖 AI 生成</button><button class="btn btn-sm btn-primary" onclick="addFaction()">+</button></div></div>
+    <div class="faction-list-panel"><div class="flex-between mb-8"><h3>🏰 势力列表</h3><div class="flex-gap"><button class="btn btn-ai btn-sm" onclick="aiGenFaction()">🤖 AI 生成</button><button class="btn btn-sm btn-primary" onclick="addFaction()">+ 新建</button></div></div>
+      ${renderSearchBox('factionSearch')}
+      ${renderRelFilter('factionRelFilter', factionRelDefs)}
       <div id="faction-list">${renderFactionList()}</div></div>
     <div class="faction-detail-panel" id="faction-detail">${renderFactionDetail()}</div></div>`;
 }
 
 function renderFactionList() {
   const factions = state.data.factions||[];
-  if (factions.length===0) return '<div class="empty-state"><div class="icon">🏰</div><p>暂无势力</p></div>';
-  return factions.map(f=>`<div class="faction-list-item${state.selectedFactionId===f.id?' selected':''}" data-faction-id="${f.id}"><span>${esc(f.name)}</span><span class="tag" style="background:${f.color||'#888'}">${esc(f.type||'')}</span></div>`).join('');
+  const factionRelMatchDefs = [
+    { key:'character', field:'members' },
+    { key:'location', fields:['headquarters'] },
+    { key:'faction', fields:['rivals','allies'] },
+    { key:'event', field:'relatedEvents' },
+  ];
+  const filtered = factions.filter(f => matchRelFilter(f, 'factionRelFilter', factionRelMatchDefs)).filter(f => matchSearch(f.name, 'factionSearch'));
+  if (filtered.length===0) return '<div class="empty-state"><div class="icon">🏰</div><p>暂无势力</p></div>';
+  return filtered.map(f=>`<div class="faction-list-item${state.selectedFactionId===f.id?' selected':''}" data-faction-id="${f.id}"><span>${esc(f.name)}</span><span class="tag" style="background:${f.color||'#888'}">${esc(f.type||'')}</span></div>`).join('');
 }
 
 function renderFactionDetail() {
@@ -37,7 +52,7 @@ function renderFactionWikiView(f) {
   const cpData = f.customProps || {};
   const customPropHtml = renderCustomPropWikiHtml(customProps, cpData);
 
-  return `<div class="wiki-page">
+  return `<div class="wiki-page detail-scroll-area">
     <div class="wiki-header">
       <h2 class="wiki-title">🏰 ${esc(f.name)}</h2>
       <div class="wiki-meta">
@@ -53,12 +68,12 @@ function renderFactionWikiView(f) {
     ${allyNames.length>0?`<div class="wiki-section"><div class="wiki-section-title">盟友势力</div><div class="wiki-tags">${_normLinks(f.allies).map(al=>{const af=allFactions.find(fa=>fa.id===al.id);const descArg=al.desc?`, '${jsStr(al.desc)}'`:'';return af?`<span class="wiki-tag item" onclick="showPreviewCard('faction','${esc(af.id)}',event${descArg})" style="cursor:pointer">${esc(af.name)}</span>`:`<span class="wiki-tag item">${esc(al.id)}</span>`;}).join('')}</div></div>`:''}
     ${_normLinks(f.relatedEvents).length>0?`<div class="wiki-section"><div class="wiki-section-title">关联事件</div><div class="wiki-tags">${_normLinks(f.relatedEvents).map(el=>{const ev=(state.data.timeline||[]).find(e=>e.id===el.id);const descArg=el.desc?`, '${jsStr(el.desc)}'`:'';return ev?`<span class="wiki-tag item" onclick="showPreviewCard('event','${esc(ev.id)}',event${descArg})" style="cursor:pointer">${esc(ev.name)}</span>`:`<span class="wiki-tag item">${esc(el.id)}</span>`;}).join('')}</div></div>`:''}
     ${_normLinks(f.relatedVolumes).length>0?`<div class="wiki-section"><div class="wiki-section-title">📑 关联卷</div><div class="wiki-tags">${_normLinks(f.relatedVolumes).map(vl=>{const vol=(state.data.outline||[]).find((v,i)=>i===parseInt(vl.id)||v.id===vl.id);return vol?`<span class="wiki-tag item">📖 ${esc(vol.title||'未命名卷')}</span>`:`<span class="wiki-tag item">${esc(vl.id)}</span>`;}).join('')}</div></div>`:''}
-    <div class="flex-between" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-      <button class="btn btn-sm btn-outline" onclick="if(state.navigationHistory.length>0)goBack();else{state.selectedFactionId=null;renderTabContent()}">← 返回</button>
-      <div class="flex-gap">
-        <button class="btn btn-sm btn-danger" onclick="deleteFaction('${f.id}')">🗑️ 删除</button>
-        <button class="btn btn-sm btn-primary" onclick="startFactionEdit()">✏️ 编辑</button>
-      </div>
+  </div>
+  <div class="detail-sticky-bar">
+    <button class="btn btn-sm btn-outline" onclick="if(state.navigationHistory.length>0)goBack();else{state.selectedFactionId=null;renderTabContent()}">← 返回</button>
+    <div class="flex-gap">
+      <button class="btn btn-sm btn-danger" onclick="deleteFaction('${f.id}')">🗑️ 删除</button>
+      <button class="btn btn-sm btn-primary" onclick="startFactionEdit()">✏️ 编辑</button>
     </div>
   </div>`;
 }
@@ -72,7 +87,7 @@ function renderFactionEditForm(f) {
   ensurePropertyDefs();
   const customProps = getCustomPropsForScope('factions');
   if (!f.customProps) f.customProps = {};
-  return `<div class="card">
+  return `<div class="card detail-scroll-area">
     <div class="form-row"><div class="form-group"><label>名称</label><input value="${esc(f.name)}" onchange="updateFaction('name',this.value)"></div>
     <div class="form-group"><label>类型</label>${renderCategorySelect(f.type||'','factionType',"updateFaction('type',this.value)")}</div></div>
     <div class="form-row"><div class="form-group"><label>势力颜色</label><input type="color" value="${f.color||'#888888'}" onchange="updateFaction('color',this.value)" style="width:60px;height:36px;padding:2px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-sm)"></div></div>
@@ -130,13 +145,14 @@ function renderFactionEditForm(f) {
         ${_normLinks(f.relatedVolumes).length>0?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${_normLinks(f.relatedVolumes).map(vl=>{const vol=(state.data.outline||[]).find((v,i)=>i===parseInt(vl.id)||v.id===vl.id);return vol?`<span class="wiki-tag item">📖 ${esc(vol.title||'未命名卷')}<button class="btn btn-xs btn-icon btn-danger" style="font-size:8px;margin-left:2px" onclick="removeFactionVolume('${esc(vl.id)}')">×</button></span>`:'';}).join('')}</div>`:''}
       </div>
     </div>
-    <div class="flex-between" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-      <div></div>
-      <div class="flex-gap">
-        <button class="btn btn-sm btn-outline" onclick="cancelFactionEdit()">取消</button>
-        <button class="btn btn-sm btn-primary" onclick="saveFactionEdit()">💾 保存</button>
-      </div>
-    </div></div>`;
+  </div>
+  <div class="detail-sticky-bar">
+    <div></div>
+    <div class="flex-gap">
+      <button class="btn btn-sm btn-outline" onclick="cancelFactionEdit()">取消</button>
+      <button class="btn btn-sm btn-primary" onclick="saveFactionEdit()">💾 保存</button>
+    </div>
+  </div>`;
 }
 
 let _factionEditSnapshot = null;
@@ -165,6 +181,7 @@ function cancelFactionEdit() {
 }
 
 function setupFactions() {
+  registerSearchTarget('factionSearch','faction-list',renderFactionList);
   const list = $('#faction-list');
   if (list) { list.querySelectorAll('.faction-list-item').forEach(item=>{item.onclick=()=>{state.selectedFactionId=item.dataset.factionId;state.editingFaction=false;state._forceAnimate=true;state._animateScope='detail';renderTabContent();};});}
 }

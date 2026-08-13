@@ -22,7 +22,15 @@ const EMOJI_CATEGORIES = {
 function renderItems() {
   const backpacks = state.data.worldBackpacks||[];
   const selectedBp = backpacks.find(bp=>bp.id===state.selectedItemId);
+  const itemRelDefs = [
+    { key:'character', label:'角色', field:'relatedCharacters', getItems:()=>collectGlossary('character') },
+    { key:'faction', label:'势力', field:'relatedFactions', getItems:()=>(state.data.factions||[]).map(f=>({id:f.id,name:f.name||'未命名'})) },
+    { key:'location', label:'地点', field:'relatedLocations', getItems:()=>collectGlossary('location') },
+    { key:'event', label:'事件', field:'relatedEvents', getItems:()=>(state.data.timeline||[]).map(e=>({id:e.id,name:e.name||e.title||'未命名'})) },
+  ];
   return `<div class="item-layout"><div class="item-list-panel"><div class="flex-between mb-8"><h3>🌍 世界系统</h3><button class="btn btn-sm btn-primary" onclick="addBackpack()">+ 新建背包</button></div>
+    ${renderSearchBox('itemSearch')}
+    ${renderRelFilter('itemRelFilter', itemRelDefs)}
     <div id="item-list">${renderBackpackList()}</div></div>
     <div class="item-detail-panel">
       ${selectedBp ? renderBackpackDetail(selectedBp) : '<div class="empty-state"><div class="icon">👆</div><p>选择左侧背包查看详情</p></div>'}
@@ -31,16 +39,42 @@ function renderItems() {
 
 function renderBackpackList() {
   const backpacks = state.data.worldBackpacks||[];
+  const allItems = state.data.items||[];
+  const f = state.itemRelFilter;
+  const itemRelMatchDefs = [
+    { key:'character', field:'relatedCharacters' },
+    { key:'faction', field:'relatedFactions' },
+    { key:'location', field:'relatedLocations' },
+    { key:'event', field:'relatedEvents' },
+  ];
+  const hasFilter = f && Object.values(f).some(v => v && v.length > 0);
+  const q = (state.itemSearch || '').toLowerCase().trim();
+  const matchBpSearch = (bp) => {
+    if (!q) return true;
+    if ((bp.name||'').toLowerCase().includes(q)) return true;
+    return allItems.filter(i => i.backpackId === bp.id).some(i => (i.name||'').toLowerCase().includes(q));
+  };
+  if (hasFilter) {
+    const filteredBps = backpacks.filter(bp => {
+      const bpItems = allItems.filter(i => i.backpackId === bp.id);
+      return bpItems.some(item => matchRelFilter(item, 'itemRelFilter', itemRelMatchDefs));
+    }).filter(matchBpSearch);
+    if (filteredBps.length===0) return '<div class="empty-state"><div class="icon">🎒</div><p>无匹配背包</p></div>';
+    return filteredBps.map(bp=>`<div class="item-list-item${state.selectedItemId===bp.id?' selected':''}" data-bp-id="${bp.id}">
+      <span class="item-icon">${bp.icon||'🎒'}</span><span>${esc(bp.name)}</span>
+      <span class="text-xs text-muted" style="margin-left:auto">${allItems.filter(i=>i.backpackId===bp.id).length}项</span>
+    </div>`).join('');
+  }
   if (backpacks.length===0) return '<div class="empty-state"><div class="icon">🎒</div><p>暂无背包，点击"+ 新建背包"创建</p></div>';
-  return backpacks.map(bp=>`<div class="item-list-item${state.selectedItemId===bp.id?' selected':''}" data-bp-id="${bp.id}">
+  return backpacks.filter(matchBpSearch).map(bp=>`<div class="item-list-item${state.selectedItemId===bp.id?' selected':''}" data-bp-id="${bp.id}">
     <span class="item-icon">${bp.icon||'🎒'}</span><span>${esc(bp.name)}</span>
-    <span class="text-xs text-muted" style="margin-left:auto">${((state.data.items||[]).filter(i=>i.backpackId===bp.id).length)}项</span>
+    <span class="text-xs text-muted" style="margin-left:auto">${allItems.filter(i=>i.backpackId===bp.id).length}项</span>
   </div>`).join('');
 }
 
 function renderBackpackDetail(bp) {
   const bpItems = (state.data.items||[]).filter(i=>i.backpackId===bp.id);
-  return `<div class="card">
+  return `<div class="card detail-scroll-area">
     <div class="flex-between">
       <div style="display:flex;align-items:center;gap:8px">
         <h3 style="margin:0">${bp.icon||'🎒'} ${esc(bp.name)}</h3>
@@ -361,6 +395,7 @@ async function deleteBackpackItem(id) {
 }
 
 function setupItems() {
+  registerSearchTarget('itemSearch','item-list',renderBackpackList);
   const list = $('#item-list');
   if (list) { list.querySelectorAll('.item-list-item').forEach(item=>{item.onclick=()=>{state.selectedItemId=item.dataset.bpId;editItemId=null;state._forceAnimate=true;state._animateScope='detail';renderTabContent();};});}
   const bpList=$('#bp-items-list');

@@ -4,10 +4,18 @@
 // ============================================================
 
 function renderCharacters() {
+  const charRelDefs = [
+    { key:'faction', label:'势力', field:'factions', getItems:()=>(state.data.factions||[]).map(f=>({id:f.id,name:f.name||'未命名'})) },
+    { key:'location', label:'地点', field:'locations', getItems:()=>collectGlossary('location') },
+    { key:'event', label:'事件', field:'relatedEvents', getItems:()=>(state.data.timeline||[]).map(e=>({id:e.id,name:e.name||e.title||'未命名'})) },
+    { key:'item', label:'物品', grouped:true, getGroups:()=>(state.data.worldBackpacks||[]).map(bp=>({id:bp.id,name:bp.name||'未命名',items:(state.data.items||[]).filter(i=>i.backpackId===bp.id).map(i=>({id:i.id,name:i.name||'未命名'}))})).filter(g=>g.items.length>0) },
+  ];
   return `<div class="char-layout">
-    <div class="char-list-panel"><div class="flex-between mb-8"><h3>👤 角色列表</h3><div class="flex-gap"><button class="btn btn-ai btn-sm" onclick="aiGenCharacter()">🤖 AI 生成</button><button class="btn btn-sm btn-primary" onclick="addCharacter()">+</button></div></div>
+    <div class="char-list-panel"><div class="flex-between mb-8"><h3>👤 角色列表</h3><div class="flex-gap"><button class="btn btn-ai btn-sm" onclick="aiGenCharacter()">🤖 AI 生成</button><button class="btn btn-sm btn-primary" onclick="addCharacter()">+ 新建</button></div></div>
       <div><select id="char-role-filter" onchange="refreshCharList()" style="width:100%;padding:6px 10px;margin-bottom:8px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:var(--font-body)">
         <option value="all">全部角色</option><option value="主角">主角</option><option value="反派">反派</option><option value="重要配角">重要配角</option><option value="次要角色">次要角色</option><option value="NPC">NPC</option><option value="路人">路人</option></select></div>
+      ${renderSearchBox('charSearch')}
+      ${renderRelFilter('charRelFilter', charRelDefs)}
       <div id="char-list">${renderCharList()}</div></div>
     <div class="char-detail-panel" id="char-detail">${renderCharDetail()}</div></div>`;
 }
@@ -15,7 +23,15 @@ function renderCharacters() {
 function renderCharList() {
   const chars = state.data.characters||[];
   const filter = ($('#char-role-filter')?.value)||'all';
-  const filtered = filter==='all'?chars:chars.filter(c=>c.role===filter);
+  let filtered = filter==='all'?chars:chars.filter(c=>c.role===filter);
+  const charRelMatchDefs = [
+    { key:'faction', fields:['factions','faction'] },
+    { key:'location', fields:['locations','location'] },
+    { key:'event', field:'relatedEvents' },
+    { key:'item', matchFn:(c,ids)=>{ const bp=c.backpackItems||{}; return Object.values(bp).some(arr=>arr.some(id=>ids.includes(id))); } },
+  ];
+  filtered = filtered.filter(c => matchRelFilter(c, 'charRelFilter', charRelMatchDefs));
+  filtered = filtered.filter(c => matchSearch(c.name, 'charSearch'));
   if (filtered.length===0) return '<div class="empty-state"><div class="icon">👤</div><p>暂无角色</p></div>';
   return filtered.map(c=>`<div class="char-list-item${state.selectedCharacterId===c.id?' selected':''}" data-char-id="${c.id}"><span>${esc(c.name)}</span><span class="char-role">${esc(c.role||'')}</span></div>`).join('');
 }
@@ -47,7 +63,7 @@ function renderCharWikiView(c) {
   const genderBadge = c.gender && c.gender!=='未知' ? `<span class="wiki-badge gender">${esc(c.gender)}</span>` : '';
   const ageBadge = c.age ? `<span class="wiki-badge age">${esc(c.age)}岁</span>` : '';
 
-  return `<div class="wiki-page">
+  return `<div class="wiki-page detail-scroll-area">
     <div class="wiki-header">
       <div class="flex-between">
         <div class="flex-gap" style="align-items:center">
@@ -102,12 +118,12 @@ function renderCharWikiView(c) {
     }).join('')}
     ${_normLinks(c.relatedEvents).length>0?`<div class="wiki-section"><div class="wiki-section-title">关联事件</div><div class="wiki-tags">${_normLinks(c.relatedEvents).map(el=>{const ev=(state.data.timeline||[]).find(e=>e.id===el.id);const descArg=el.desc?`, '${jsStr(el.desc)}'`:'';return ev?`<span class="wiki-tag item" onclick="showPreviewCard('event','${esc(ev.id)}',event${descArg})" style="cursor:pointer">${esc(ev.name)}</span>`:`<span class="wiki-tag item">${esc(el.id)}</span>`;}).join('')}</div></div>`:''}
     ${_normLinks(c.relatedVolumes).length>0?`<div class="wiki-section"><div class="wiki-section-title">📑 关联卷</div><div class="wiki-tags">${_normLinks(c.relatedVolumes).map(vl=>{const vol=(state.data.outline||[]).find((v,i)=>i===parseInt(vl.id)||v.id===vl.id);return vol?`<span class="wiki-tag item">📖 ${esc(vol.title||'未命名卷')}</span>`:`<span class="wiki-tag item">${esc(vl.id)}</span>`;}).join('')}</div></div>`:''}
-    <div class="flex-between" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-      <button class="btn btn-sm btn-outline" onclick="if(state.navigationHistory.length>0)goBack();else{state.selectedCharacterId=null;renderTabContent()}">← 返回</button>
-      <div class="flex-gap">
-        <button class="btn btn-sm btn-danger" onclick="deleteCharacter('${c.id}')">🗑️ 删除</button>
-        <button class="btn btn-sm btn-primary" onclick="startCharEdit()">✏️ 编辑</button>
-      </div>
+  </div>
+  <div class="detail-sticky-bar">
+    <button class="btn btn-sm btn-outline" onclick="if(state.navigationHistory.length>0)goBack();else{state.selectedCharacterId=null;renderTabContent()}">← 返回</button>
+    <div class="flex-gap">
+      <button class="btn btn-sm btn-danger" onclick="deleteCharacter('${c.id}')">🗑️ 删除</button>
+      <button class="btn btn-sm btn-primary" onclick="startCharEdit()">✏️ 编辑</button>
     </div>
   </div>`;
 }
@@ -131,7 +147,7 @@ function renderCharEditForm(c) {
 
   const rels = (state.data.characterRelations||[]).filter(r=>r.sourceId===c.id||r.targetId===c.id);
 
-  return `<div class="card">
+  return `<div class="card detail-scroll-area">
     <div style="display:flex;gap:20px;align-items:flex-start">
       <div style="flex:1;min-width:0">
         <div class="char-basic-info">
@@ -231,13 +247,14 @@ function renderCharEditForm(c) {
         <button class="btn btn-sm btn-outline" onclick="addCharRelation()">+ 添加关系</button>
       </div>
     </div>
-    <div class="flex-between" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-      <div></div>
-      <div class="flex-gap">
-        <button class="btn btn-sm btn-outline" onclick="cancelCharEdit()">取消</button>
-        <button class="btn btn-sm btn-primary" onclick="saveCharEdit()">💾 保存</button>
-      </div>
-    </div></div>`;
+  </div>
+  <div class="detail-sticky-bar">
+    <div></div>
+    <div class="flex-gap">
+      <button class="btn btn-sm btn-outline" onclick="cancelCharEdit()">取消</button>
+      <button class="btn btn-sm btn-primary" onclick="saveCharEdit()">💾 保存</button>
+    </div>
+  </div>`;
 }
 
 let _charEditSnapshot = null;
@@ -462,6 +479,7 @@ function navigateToLocation(locationId) { pushNavHistory(); state.activeTab = 'l
 function navigateToCharacter(characterId) { pushNavHistory(); state.activeTab = 'characters'; state.selectedCharacterId = characterId; render(); }
 
 function setupCharacters() {
+  registerSearchTarget('charSearch','char-list',renderCharList);
   const charList = $('#char-list');
   if (charList) { charList.querySelectorAll('.char-list-item').forEach(item=>{item.onclick=()=>{state.selectedCharacterId=item.dataset.charId;state.editingCharacter=false;state._forceAnimate=true;state._animateScope='detail';renderTabContent();};});}
 }

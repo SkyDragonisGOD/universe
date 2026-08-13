@@ -4,11 +4,18 @@
 // ============================================================
 
 function renderLocations() {
+  const locRelDefs = [
+    { key:'character', label:'角色', field:'relatedCharacters', getItems:()=>collectGlossary('character') },
+    { key:'faction', label:'势力', field:'relatedFactions', getItems:()=>(state.data.factions||[]).map(f=>({id:f.id,name:f.name||'未命名'})) },
+    { key:'event', label:'事件', field:'events', getItems:()=>(state.data.timeline||[]).map(e=>({id:e.id,name:e.name||e.title||'未命名'})) },
+  ];
   return `<div class="location-layout">
     <div class="tag-tree-panel"><div class="flex-between mb-8"><h3>🏷️ 标签树</h3><button class="btn btn-xs btn-outline" onclick="addTag(null)">+</button></div>
       <div class="tag-tree" id="tag-tree">${renderTagTree(state.data.locationTagTree||[],0)}</div></div>
     <div class="location-panel"><div class="flex-between mb-8"><h3>📍 地点列表</h3><div class="flex-gap"><button class="btn btn-ai btn-sm" onclick="aiGenLocation()">🤖 AI 生成</button><button class="btn btn-sm btn-primary" onclick="addLocation()">+ 添加</button></div></div>
-      <div id="ai-location-result"></div><div id="location-list">${renderLocationList()}</div><div id="location-detail" class="mt-16">${renderLocationDetail()}</div></div></div>`;
+      ${renderSearchBox('locSearch')}
+      ${renderRelFilter('locRelFilter', locRelDefs)}
+      <div id="location-list-wrap"><div id="ai-location-result"></div><div id="location-list">${renderLocationList()}</div></div><div id="location-detail" class="mt-16">${renderLocationDetail()}</div></div></div>`;
 }
 
 function renderTagTree(tags, depth) {
@@ -35,10 +42,16 @@ function renderLocationList() {
   const tags = state.data.locationTagTree||[];
   const filter = state.locationTagFilter;
   const locs = filter ? allLocs.filter(l=>(l.tags||[]).includes(filter)) : allLocs;
+  const locRelMatchDefs = [
+    { key:'character', field:'relatedCharacters' },
+    { key:'faction', field:'relatedFactions' },
+    { key:'event', field:'events' },
+  ];
+  const relFiltered = locs.filter(l => matchRelFilter(l, 'locRelFilter', locRelMatchDefs)).filter(l => matchSearch(l.name, 'locSearch'));
   if (allLocs.length===0) return '<div class="empty-state"><div class="icon">📍</div><p>暂无地点</p></div>';
   const filterTag = filter ? findTag(tags,filter) : null;
   return (filter ? `<div class="mb-8" style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:500;color:var(--warm-gray)"><span>筛选标签：</span><span class="loc-tag-badge"><span class="dot" style="background:${filterTag?.color||'#888'}"></span>${esc(filterTag?.name||'')}</span><button class="btn btn-xs" onclick="clearLocationFilter()">✕ 清除</button></div>`:'')+
-    (locs.length===0?'<div class="empty-state"><div class="icon">🔍</div><p>该标签下暂无地点</p></div>':locs.map(l=>{const locTags=(l.tags||[]).map(tid=>findTag(tags,tid)).filter(Boolean);return`<div class="location-card${state.selectedLocationId===l.id?' selected':''}" data-loc-id="${l.id}"><div class="flex-between"><span class="loc-name">${esc(l.name)}</span><button class="btn btn-xs btn-danger" onclick="event.stopPropagation();deleteLocation('${l.id}')">×</button></div><div class="loc-desc">${esc((l.description||'').slice(0,100))}</div><div class="loc-tags">${locTags.map(t=>`<span class="loc-tag-badge"><span class="dot" style="background:${t.color}"></span>${esc(t.name)}</span>`).join('')}</div></div>`;}).join(''));
+    (relFiltered.length===0?'<div class="empty-state"><div class="icon">🔍</div><p>无匹配地点</p></div>':relFiltered.map(l=>{const locTags=(l.tags||[]).map(tid=>findTag(tags,tid)).filter(Boolean);return`<div class="location-card${state.selectedLocationId===l.id?' selected':''}" data-loc-id="${l.id}"><div class="flex-between"><span class="loc-name">${esc(l.name)}</span><button class="btn btn-xs btn-danger" onclick="event.stopPropagation();deleteLocation('${l.id}')">×</button></div><div class="loc-desc">${esc((l.description||'').slice(0,100))}</div><div class="loc-tags">${locTags.map(t=>`<span class="loc-tag-badge"><span class="dot" style="background:${t.color}"></span>${esc(t.name)}</span>`).join('')}</div></div>`;}).join(''));
 }
 
 function renderLocationDetail() {
@@ -64,7 +77,7 @@ function renderLocationWikiView(loc) {
   const cpData = loc.customProps || {};
   const customPropHtml = renderCustomPropWikiHtml(customProps, cpData);
 
-  return `<div class="wiki-page">
+  return `<div class="wiki-page detail-scroll-area">
     <div class="wiki-header">
       <h2 class="wiki-title">📍 ${esc(loc.name)}</h2>
       <div class="wiki-meta">
@@ -78,12 +91,12 @@ function renderLocationWikiView(loc) {
     ${locEvents.length>0?`<div class="wiki-section"><div class="wiki-section-title">关联事件</div><div class="wiki-tags">${locEvents.map(ev=>{const descArg=ev._desc?`, '${jsStr(ev._desc)}'`:'';return`<span class="wiki-tag item" onclick="showPreviewCard('event','${esc(ev.id)}',event${descArg})" style="cursor:pointer">${esc(ev.name)}</span>`;}).join('')}</div></div>`:''}
     ${locFactions.length>0?`<div class="wiki-section"><div class="wiki-section-title">关联势力</div><div class="wiki-tags">${locFactions.map(fa=>{const descArg=fa._desc?`, '${jsStr(fa._desc)}'`:'';return`<span class="wiki-tag item" onclick="showPreviewCard('faction','${esc(fa.id)}',event${descArg})" style="cursor:pointer">${esc(fa.name)}</span>`;}).join('')}</div></div>`:''}
     ${_normLinks(loc.relatedVolumes).length>0?`<div class="wiki-section"><div class="wiki-section-title">📑 关联卷</div><div class="wiki-tags">${_normLinks(loc.relatedVolumes).map(vl=>{const vol=(state.data.outline||[]).find((v,i)=>i===parseInt(vl.id)||v.id===vl.id);return vol?`<span class="wiki-tag item">📖 ${esc(vol.title||'未命名卷')}</span>`:`<span class="wiki-tag item">${esc(vl.id)}</span>`;}).join('')}</div></div>`:''}
-    <div class="flex-between" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-      <button class="btn btn-sm btn-outline" onclick="if(state.navigationHistory.length>0)goBack();else{state.selectedLocationId=null;renderTabContent()}">← 返回</button>
-      <div class="flex-gap">
-        <button class="btn btn-sm btn-danger" onclick="deleteLocation('${loc.id}')">🗑️ 删除</button>
-        <button class="btn btn-sm btn-primary" onclick="startLocationEdit()">✏️ 编辑</button>
-      </div>
+  </div>
+  <div class="detail-sticky-bar">
+    <button class="btn btn-sm btn-outline" onclick="if(state.navigationHistory.length>0)goBack();else{state.selectedLocationId=null;renderTabContent()}">← 返回</button>
+    <div class="flex-gap">
+      <button class="btn btn-sm btn-danger" onclick="deleteLocation('${loc.id}')">🗑️ 删除</button>
+      <button class="btn btn-sm btn-primary" onclick="startLocationEdit()">✏️ 编辑</button>
     </div>
   </div>`;
 }
@@ -95,7 +108,7 @@ function renderLocationEditForm(loc) {
   ensurePropertyDefs();
   const customProps = getCustomPropsForScope('locations');
   if (!loc.customProps) loc.customProps = {};
-  return `<div class="card">
+  return `<div class="card detail-scroll-area">
     <div class="form-row"><div class="form-group"><label>名称</label><input value="${esc(loc.name)}" onchange="updateLocation('name',this.value)"></div>
     <div class="form-group"><label>分类</label>${renderCategorySelect(loc.category||'','category',"updateLocation('category',this.value)")}</div></div>
     <div class="form-group"><label>描述</label><textarea rows="3" onchange="updateLocation('description',this.value)">${esc(loc.description||'')}</textarea></div>
@@ -147,13 +160,14 @@ function renderLocationEditForm(loc) {
         ${_normLinks(loc.relatedVolumes).length>0?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${_normLinks(loc.relatedVolumes).map(vl=>{const vol=(state.data.outline||[]).find((v,i)=>i===parseInt(vl.id)||v.id===vl.id);return vol?`<span class="wiki-tag item">📖 ${esc(vol.title||'未命名卷')}<button class="btn btn-xs btn-icon btn-danger" style="font-size:8px;margin-left:2px" onclick="removeLocVolume('${esc(vl.id)}')">×</button></span>`:'';}).join('')}</div>`:''}
       </div>
     </div>
-    <div class="flex-between" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
-      <div></div>
-      <div class="flex-gap">
-        <button class="btn btn-sm btn-outline" onclick="cancelLocationEdit()">取消</button>
-        <button class="btn btn-sm btn-primary" onclick="saveLocationEdit()">💾 保存</button>
-      </div>
-    </div></div>`;
+  </div>
+  <div class="detail-sticky-bar">
+    <div></div>
+    <div class="flex-gap">
+      <button class="btn btn-sm btn-outline" onclick="cancelLocationEdit()">取消</button>
+      <button class="btn btn-sm btn-primary" onclick="saveLocationEdit()">💾 保存</button>
+    </div>
+  </div>`;
 }
 
 let _locEditSnapshot = null;
@@ -229,6 +243,7 @@ function renderTagCheckboxes(tags, selectedIds, depth) {
 function findTag(tags,id) { for (const t of tags) { if (t.id===id) return t; if (t.children) { const f=findTag(t.children,id); if (f) return f; } } return null; }
 
 function setupLocations() {
+  registerSearchTarget('locSearch','location-list',renderLocationList);
   const locList = $('#location-list');
   if (locList) { locList.querySelectorAll('.location-card').forEach(c=>{c.onclick=()=>{state.selectedLocationId=c.dataset.locId;state.editingLocation=false;state._forceAnimate=true;state._animateScope='detail';renderTabContent();};});}
 }
