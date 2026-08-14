@@ -45,28 +45,151 @@ function _getEmojiLib() {
 function renderEmojiLibSection() {
   const lib = _getEmojiLib();
   return `<div style="margin-bottom:12px;padding:10px;background:var(--bg-alt);border-radius:var(--radius-sm)">
-    <div class="flex-between mb-4"><span style="font-size:12px;font-weight:500">😀 自定义 Emoji 库</span><button class="btn btn-xs btn-outline" onclick="addEmojiToLib()">+ 添加</button></div>
-    ${lib.length === 0 ? '<div style="font-size:11px;color:var(--muted)">暂无自定义 emoji，点击添加</div>' :
+    <div class="flex-between mb-4"><span style="font-size:12px;font-weight:500">😀 自定义 Emoji 库</span><button class="btn btn-xs btn-outline" onclick="openEmojiLibManager()">⚙️ 管理</button></div>
+    ${lib.length === 0 ? '<div style="font-size:11px;color:var(--muted)">暂无自定义 emoji，点击管理添加</div>' :
       `<div style="display:flex;flex-wrap:wrap;gap:4px">${lib.map((em,i) =>
-        `<span style="display:inline-flex;align-items:center;gap:2px;padding:2px 6px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:16px;cursor:default" title="${esc(em.name||'')}">${esc(em.emoji)}<button style="background:none;border:none;color:var(--danger);cursor:pointer;font-size:10px;padding:0 2px" onclick="removeEmojiFromLib(${i})">×</button></span>`
+        `<span style="display:inline-flex;align-items:center;gap:2px;padding:2px 6px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:16px;cursor:default" title="${esc(em.name||'')}">${esc(em.emoji)}</span>`
       ).join('')}</div>`}
   </div>`;
 }
 
-async function addEmojiToLib() {
-  const emoji = await customPrompt('输入 Emoji', '');
-  if (!emoji || !emoji.trim()) return;
-  const name = await customPrompt('Emoji 名称（可选）', '');
+function openEmojiLibManager() {
   const lib = _getEmojiLib();
-  lib.push({ emoji: emoji.trim(), name: name || '' });
+  const overlay = $('#modal-overlay');
+  const modal = $('#modal-box');
+  const customLibHtml = lib.length > 0 ? `<div class="emoji-cat"><div class="emoji-cat-title">⭐ 我的 Emoji</div><div class="emoji-grid" id="emoji-lib-grid">${lib.map((em,i) =>
+    `<div class="emoji-lib-item" data-emoji-idx="${i}" draggable="true" oncontextmenu="event.preventDefault();_emojiLibContextMenu(event,${i})" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;font-size:20px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-xs);cursor:grab;transition:all var(--transition)">${esc(em.emoji)}<button style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;border-radius:50%;background:var(--danger);color:var(--white);border:none;font-size:8px;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1" class="emoji-lib-del" onclick="event.stopPropagation();_emojiLibManagerRemove(${i})">×</button></div>`
+  ).join('')}<button class="emoji-btn" style="border-style:dashed;color:var(--muted)" onclick="_emojiLibManagerAddFromPanel()">＋</button></div></div>` : `<div class="emoji-cat"><div class="emoji-cat-title">⭐ 我的 Emoji</div><div class="emoji-grid" id="emoji-lib-grid"><button class="emoji-btn" style="border-style:dashed;color:var(--muted)" onclick="_emojiLibManagerAddFromPanel()">＋</button></div></div>`;
+  const categories = Object.entries(EMOJI_CATEGORIES_LIB).map(([cat, emojis]) => {
+    return `<div class="emoji-cat"><div class="emoji-cat-title">${esc(cat)}</div><div class="emoji-grid">${emojis.map(e => `<button class="emoji-btn" onclick="_emojiLibManagerAdd('${e}')">${e}</button>`).join('')}<button class="emoji-btn" style="border-style:dashed;color:var(--muted)" onclick="_emojiLibManagerAddFromPanel('${cat}')">＋</button></div></div>`;
+  }).join('');
+  modal.innerHTML = `
+    <h3>😀 管理 Emoji 库</h3>
+    <div class="form-group"><label>自定义输入</label><div style="display:flex;gap:6px"><input id="emoji-lib-custom-input" placeholder="输入emoji或文字" style="flex:1;padding:8px 12px;font-size:14px"><button class="btn btn-sm btn-primary" onclick="_emojiLibManagerAddCustom()">添加</button></div></div>
+    <div style="max-height:350px;overflow-y:auto">${customLibHtml}${categories}</div>
+    <div class="modal-actions">
+      <button class="btn btn-outline" onclick="_emojiLibManagerCancel()">取消</button>
+      <button class="btn btn-primary" onclick="_emojiLibManagerSave()">💾 保存</button>
+    </div>`;
+  overlay.classList.remove('hidden');
+  overlay.onclick = (e) => { if (e.target === overlay) _emojiLibManagerCancel(); };
+  if (!state._emojiLibBackup) state._emojiLibBackup = JSON.parse(JSON.stringify(lib));
+  _setupEmojiLibDrag();
+}
+
+const EMOJI_CATEGORIES_LIB = {
+  '武器': ['⚔️','🗡️','🏹','🔫','🛡️','💣','🪄','🔱','⚒️','🪓'],
+  '魔法': ['✨','🔮','💫','🌟','⭐','🌙','☀️','⚡','🔥','❄️','💧','🌊','🌪️','💎','🧿'],
+  '药剂': ['🧪','💊','🍷','🫧','🍵','🧴','🍯','🫖'],
+  '食物': ['🍞','🧀','🥩','🍗','🍎','🍇','🫐','🥧','🎂','🍩'],
+  '装备': ['👕','👖','🧥','👒','🎩','🧤','🥾','📿','💍','👑'],
+  '工具': ['🔧','🔨','⛏️','🪝','🧲','🔑','🗝️','🔒','📐','🪬'],
+  '书籍': ['📖','📜','📚','📓','📃','🏷️','🔖','📰'],
+  '自然': ['🌿','🌸','🍄','🌲','🍁','🌺','🌻','🌱','🍀','🌾'],
+  '动物': ['🐉','🦅','🐺','🐍','🦁','🐴','🦇','🐈','🦊','🐻'],
+  '杂项': ['📦','🎒','💰','🎁','🎭','🧸','🎲','🃏','🎵','🔔','🕯️','🗺️','🧭','⏳','🪙','⚱️','🪦','🧿']
+};
+
+function _setupEmojiLibDrag() {
+  const grid = document.getElementById('emoji-lib-grid');
+  if (!grid) return;
+  grid.querySelectorAll('.emoji-lib-item').forEach(item => {
+    item.addEventListener('dragstart', function(e) {
+      e.dataTransfer.setData('text/plain', this.dataset.emojiIdx);
+      this.style.opacity = '0.4';
+    });
+    item.addEventListener('dragend', function() {
+      this.style.opacity = '1';
+      grid.querySelectorAll('.emoji-lib-item').forEach(el => el.style.borderColor = 'var(--border)');
+    });
+    item.addEventListener('dragover', function(e) {
+      e.preventDefault();
+      this.style.borderColor = 'var(--accent)';
+    });
+    item.addEventListener('dragleave', function() {
+      this.style.borderColor = 'var(--border)';
+    });
+    item.addEventListener('drop', function(e) {
+      e.preventDefault();
+      this.style.borderColor = 'var(--border)';
+      const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
+      const toIdx = parseInt(this.dataset.emojiIdx);
+      if (fromIdx === toIdx || isNaN(fromIdx) || isNaN(toIdx)) return;
+      const lib = _getEmojiLib();
+      const [moved] = lib.splice(fromIdx, 1);
+      lib.splice(toIdx, 0, moved);
+      openEmojiLibManager();
+    });
+    item.addEventListener('mouseenter', function() {
+      const del = this.querySelector('.emoji-lib-del');
+      if (del) del.style.display = 'flex';
+    });
+    item.addEventListener('mouseleave', function() {
+      const del = this.querySelector('.emoji-lib-del');
+      if (del) del.style.display = 'none';
+    });
+  });
+}
+
+function _emojiLibManagerRemove(idx) {
+  const lib = _getEmojiLib();
+  lib.splice(idx, 1);
+  openEmojiLibManager();
+}
+
+function _emojiLibManagerAdd(emoji) {
+  const lib = _getEmojiLib();
+  if (!lib.find(em => em.emoji === emoji)) {
+    lib.push({ emoji, name: '' });
+  }
+  openEmojiLibManager();
+}
+
+function _emojiLibManagerAddCustom() {
+  const input = document.getElementById('emoji-lib-custom-input');
+  if (!input || !input.value.trim()) { showToast('请输入 Emoji'); return; }
+  const emoji = input.value.trim();
+  const lib = _getEmojiLib();
+  if (!lib.find(em => em.emoji === emoji)) {
+    lib.push({ emoji, name: '' });
+  }
+  openEmojiLibManager();
+}
+
+function _emojiLibManagerAddFromPanel(catName) {
+  const input = document.getElementById('emoji-lib-custom-input');
+  if (input) input.focus();
+  showToast('请在上方输入框输入自定义 Emoji');
+}
+
+function _emojiLibContextMenu(e, idx) {
+  const existing = document.getElementById('emoji-ctx-menu');
+  if (existing) existing.remove();
+  const menu = document.createElement('div');
+  menu.id = 'emoji-ctx-menu';
+  menu.style.cssText = `position:fixed;left:${e.clientX}px;top:${e.clientY}px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-sm);box-shadow:var(--shadow);z-index:10000;min-width:80px;padding:4px 0`;
+  menu.innerHTML = `<div style="padding:6px 12px;cursor:pointer;font-size:12px;color:var(--danger);display:flex;align-items:center;gap:4px" onmouseover="this.style.background='var(--bg-alt)'" onmouseout="this.style.background=''" onclick="_emojiLibManagerRemove(${idx});document.getElementById('emoji-ctx-menu').remove()">🗑️ 删除</div>`;
+  document.body.appendChild(menu);
+  setTimeout(() => {
+    const close = (ev) => {
+      if (!menu.contains(ev.target)) { menu.remove(); document.removeEventListener('click', close); }
+    };
+    document.addEventListener('click', close);
+  }, 0);
+}
+
+function _emojiLibManagerSave() {
   autoSave();
+  closeModal();
   renderTabContent();
 }
 
-function removeEmojiFromLib(i) {
-  const lib = _getEmojiLib();
-  lib.splice(i, 1);
-  autoSave();
+function _emojiLibManagerCancel() {
+  if (state._emojiLibBackup) {
+    state.data.emojiLib = state._emojiLibBackup;
+    delete state._emojiLibBackup;
+  }
+  closeModal();
   renderTabContent();
 }
 

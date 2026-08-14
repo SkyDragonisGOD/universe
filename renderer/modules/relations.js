@@ -21,7 +21,9 @@ function _getAllGraphEntities() {
 }
 
 function _getSelectedGraphSubjects() {
-  if (!state._graphSubjects) state._graphSubjects = [];
+  if (!state._graphSubjects) {
+    state._graphSubjects = _getAllGraphEntities().map(e => e.typeKey + ':' + e.id);
+  }
   return state._graphSubjects;
 }
 
@@ -143,6 +145,26 @@ function renderRelations() {
   const edges = _buildEdgeMap(allConns);
   const vp = _getGraphViewport();
   const zoomPct = Math.round(vp.zoom * 100);
+  const selectedCount = selectedSubjects.length;
+  const filterBtns = entityTypes.map(t => {
+    const items = t.getData();
+    if (items.length === 0) return '';
+    const typeSelected = selectedSubjects.filter(s => s.startsWith(t.key + ':'));
+    const count = typeSelected.length;
+    const label = count > 0 ? `${t.icon} ${t.label}(${count})` : `${t.icon} ${t.label}`;
+    const btnClass = count > 0 ? 'filter-btn active' : 'filter-btn';
+    return `<div class="filter-pop-wrap" data-filter-key="graph_${t.key}" data-state-key="_graphFilterPop">
+      <button class="${btnClass}" onclick="toggleFilterPop(this)">${esc(label)}</button>
+      <div class="filter-pop hidden">
+        <input class="filter-search" placeholder="搜索${t.label}..." oninput="filterPopSearch(this)" onclick="event.stopPropagation()">
+        <div class="filter-pop-list">${items.map(d => {
+          const sid = t.key + ':' + d.id;
+          const checked = selectedSubjects.includes(sid);
+          return `<label class="filter-pop-item${checked?' checked':''}"><input type="checkbox" value="${esc(sid)}" ${checked?'checked':''} onchange="toggleGraphSubjectFromFilter(this)"><span>${esc(d.name)}</span></label>`;
+        }).join('')}</div>
+      </div>
+    </div>`;
+  }).join('');
   return `<div class="relation-layout">
     <div class="relation-list-panel">
       <div class="flex-between mb-8"><h3>📋 关系列表</h3><div class="flex-gap"><button class="btn btn-ai btn-sm" onclick="aiGenRelations()">🤖 AI 生成</button><button class="btn btn-sm btn-primary" onclick="addRelation()">+ 新建</button></div></div>
@@ -151,23 +173,15 @@ function renderRelations() {
       <div id="relation-list" class="relations-list">${renderRelationList()}</div>
     </div>
     <div class="relation-detail-panel">
-      <div class="card"><h3>🕸️ 关系图表</h3>
+      <div class="card" style="padding-bottom:8px"><h3>🕸️ 关系图表</h3>
         <p class="text-sm text-muted mb-8">勾选主体，自动生成关系图（${edges.length} 条关联）· 滚轮缩放 · 右键/中键拖拽画布</p>
-        <div style="margin-bottom:8px;max-height:200px;overflow-y:auto">
-          ${entityTypes.map(t => {
-            const items = t.getData();
-            if (items.length === 0) return '';
-            return `<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--muted);margin-bottom:2px">${t.icon} ${t.label}</div>
-              <div style="display:flex;flex-wrap:wrap;gap:3px">${items.map(d => {
-                const sid = t.key + ':' + d.id;
-                const isSelected = selectedSubjects.includes(sid);
-                return `<label style="display:inline-flex;align-items:center;gap:2px;font-size:11px;padding:1px 5px;border-radius:var(--radius-xs);background:${isSelected?'var(--accent-light)':'var(--bg-alt)'};cursor:pointer;border:1px solid ${isSelected?'var(--accent)':'var(--border)'}"><input type="checkbox" ${isSelected?'checked':''} onchange="toggleGraphSubject('${esc(sid)}',this.checked)" style="margin:0;width:12px;height:12px">${esc(d.name)}</label>`;
-              }).join('')}</div></div>`;
-          }).join('')}
-        </div>
-        <div class="flex-gap mb-8" style="flex-wrap:wrap">
+        <div class="filter-bar" style="margin-bottom:6px">
+          ${filterBtns}
           <button class="btn btn-xs btn-outline" onclick="selectAllGraphSubjects()">全选</button>
           <button class="btn btn-xs btn-outline" onclick="clearAllGraphSubjects()">清空</button>
+          ${selectedCount > 0 ? `<button class="filter-btn-clear" onclick="clearAllGraphSubjects()">✕ 清除(${selectedCount})</button>` : ''}
+        </div>
+        <div class="flex-gap mb-8" style="flex-wrap:wrap">
           <button class="btn btn-xs btn-outline" onclick="resetGraphLayout()">🔄 重置布局</button>
           <button class="btn btn-xs btn-primary" onclick="saveCurrentGraphToResources()">💾 保存到资源库存</button>
           <span style="display:inline-flex;align-items:center;gap:4px;margin-left:auto">
@@ -176,7 +190,7 @@ function renderRelations() {
             <button class="btn btn-xs btn-outline" onclick="graphZoom(0.15)">➕</button>
           </span>
         </div>
-        <div class="relations-canvas-container" style="overflow:hidden;position:relative"><canvas id="relations-canvas" width="800" height="400"></canvas></div>
+        <div class="relations-canvas-container" style="overflow:hidden;position:relative"><canvas id="relations-canvas" width="800" height="500"></canvas></div>
       </div>
       <div id="relation-detail"></div>
     </div></div>`;
@@ -256,6 +270,46 @@ function toggleGraphSubject(sid, checked) {
   }
   delete state._graphPositions;
   renderTabContent();
+}
+
+function toggleGraphSubjectFromFilter(checkbox) {
+  const sid = checkbox.value;
+  const checked = checkbox.checked;
+  if (!state._graphSubjects) state._graphSubjects = [];
+  if (checked) {
+    if (!state._graphSubjects.includes(sid)) state._graphSubjects.push(sid);
+  } else {
+    state._graphSubjects = state._graphSubjects.filter(s => s !== sid);
+  }
+  const label = checkbox.closest('label');
+  if (label) label.classList.toggle('checked', checked);
+  delete state._graphPositions;
+  const activePop = document.getElementById('filter-pop-active');
+  if (activePop) {
+    const key = activePop.dataset.key;
+    const typeKey = key.replace('graph_', '');
+    const entityTypes = _getGraphEntityTypes();
+    const typeInfo = entityTypes.find(t => t.key === typeKey);
+    const selectedSubjects = _getSelectedGraphSubjects();
+    const typeSelected = selectedSubjects.filter(s => s.startsWith(typeKey + ':'));
+    const count = typeSelected.length;
+    const btn = document.querySelector(`.filter-pop-wrap[data-filter-key="${key}"] > button`);
+    if (btn && typeInfo) {
+      btn.textContent = count > 0 ? `${typeInfo.icon} ${typeInfo.label}(${count})` : `${typeInfo.icon} ${typeInfo.label}`;
+      btn.className = count > 0 ? 'filter-btn active' : 'filter-btn';
+    }
+  }
+  const selectedSubjects = _getSelectedGraphSubjects();
+  const clearBtn = document.querySelector('.filter-bar .filter-btn-clear');
+  if (clearBtn) {
+    if (selectedSubjects.length > 0) {
+      clearBtn.textContent = `✕ 清除(${selectedSubjects.length})`;
+      clearBtn.style.display = '';
+    } else {
+      clearBtn.style.display = 'none';
+    }
+  }
+  drawRelationsGraph();
 }
 
 function selectAllGraphSubjects() {
