@@ -167,7 +167,7 @@ function cancelRaceEdit() {
   }
   state.editingRace = false; renderTabContent();
 }
-function updateRace(key, value) { const race = (state.data.races||[]).find(r=>r.id===state.selectedRaceId); if (race) { if (key==='name'&&checkDuplicate(state.data.races,value,race.id)){alert('已存在同名种族！');renderTabContent();return;} race[key]=value; autoSave(); } }
+function updateRace(key, value) { const race = (state.data.races||[]).find(r=>r.id===state.selectedRaceId); if (race) { if (key==='name'&&checkDuplicate(state.data.races,value,race.id)){showToast('已存在同名种族！');renderTabContent();return;} race[key]=value; autoSave(); } }
 function setRaceCustomProp(propId, value) { const race = (state.data.races||[]).find(r=>r.id===state.selectedRaceId); if (!race) return; if (!race.customProps) race.customProps = {}; race.customProps['cp_'+propId] = value; autoSave(); }
 function removeRaceRegion(locId) { const race=(state.data.races||[]).find(r=>r.id===state.selectedRaceId); if (!race) return; const oldIds=_linkIds(race.regions); race.regions=_removeLink(race.regions,locId); syncLink('race',race.id,'regions',_linkIds(race.regions),'',oldIds); autoSave(); if (state.editingRace) { const d=$('#race-detail'); if(d) d.innerHTML=renderRaceEditForm(race); } }
 function removeRaceChar(charId) { const race=(state.data.races||[]).find(r=>r.id===state.selectedRaceId); if (!race) return; const oldIds=_linkIds(race.relatedCharacters); race.relatedCharacters=_removeLink(race.relatedCharacters,charId); syncLink('race',race.id,'relatedCharacters',_linkIds(race.relatedCharacters),'',oldIds); autoSave(); if (state.editingRace) { const d=$('#race-detail'); if(d) d.innerHTML=renderRaceEditForm(race); } }
@@ -175,7 +175,7 @@ function removeRaceChar(charId) { const race=(state.data.races||[]).find(r=>r.id
 async function openRaceVolumeModal() {
   const race=(state.data.races||[]).find(r=>r.id===state.selectedRaceId); if (!race) return;
   const outline=state.data.outline||[];
-  if(outline.length===0){alert('暂无卷');return;}
+  if(outline.length===0){showToast('暂无卷');return;}
   const volItems=outline.map((v,i)=>({id:String(i),name:v.title||('第'+(i+1)+'卷')}));
   const existingIds=_normLinks(race.relatedVolumes||[]).map(l=>l.id);
   const result=await customSelectModal('📑 选择关联卷',volItems,existingIds);
@@ -195,7 +195,7 @@ function removeRaceVolume(id) {
 async function openRaceEventModal() {
   const race=(state.data.races||[]).find(r=>r.id===state.selectedRaceId); if (!race) return;
   const events=(state.data.timeline||[]);
-  if(events.length===0){alert('暂无事件');return;}
+  if(events.length===0){showToast('暂无事件');return;}
   const eventItems=events.map(e=>({id:e.id,name:e.name||'未命名事件'}));
   const existingIds=_normLinks(race.relatedEvents||[]).map(l=>l.id);
   const result=await customSelectModal('⚡ 选择关联事件',eventItems,existingIds);
@@ -216,7 +216,7 @@ async function openRaceRegionSelectModal() {
   const race = (state.data.races||[]).find(r=>r.id===state.selectedRaceId);
   if (!race) return;
   const locations = collectGlossary('location');
-  if (locations.length === 0) { alert('暂无地点'); return; }
+  if (locations.length === 0) { showToast('暂无地点'); return; }
   const result = await customLinkModal('选择常驻地区', locations, race.regions||[], '简述关系');
   if (result === null) return;
   const oldIds=_linkIds(race.regions);
@@ -231,7 +231,7 @@ async function openRaceCharSelectModal() {
   const race = (state.data.races||[]).find(r=>r.id===state.selectedRaceId);
   if (!race) return;
   const characters = collectGlossary('character');
-  if (characters.length === 0) { alert('暂无角色'); return; }
+  if (characters.length === 0) { showToast('暂无角色'); return; }
   const result = await customLinkModal('选择代表角色', characters, race.relatedCharacters||[], '简述关系');
   if (result === null) return;
   const oldIds=_linkIds(race.relatedCharacters);
@@ -245,78 +245,20 @@ async function openRaceCharSelectModal() {
 async function deleteRace(id) { if (!await customConfirm('确定删除此种族？')) return; state.data.races=(state.data.races||[]).filter(r=>r.id!==id); if (state.selectedRaceId===id) state.selectedRaceId=null; autoSave(); renderTabContent(); }
 
 function setupRaces() {
-  registerSearchTarget('raceSearch','race-list',()=>{const races=state.data.races||[];const raceRelMatchDefs=[{key:'character',field:'relatedCharacters'},{key:'location',field:'regions'},{key:'event',field:'relatedEvents'}];const filtered=races.filter(r=>matchRelFilter(r,'raceRelFilter',raceRelMatchDefs)).filter(r=>matchSearch(r.name,'raceSearch'));return filtered.length===0?'<div class="empty-state"><div class="icon">🧬</div><p>暂无种族</p></div>':filtered.map(r=>`<div class="item-list-item${state.selectedRaceId===r.id?' selected':''}" data-race-id="${r.id}"><span class="race-drag-handle" style="cursor:grab;font-size:10px;color:var(--warm-gray);margin-right:4px;user-select:none" title="拖拽排序">⠿</span><span class="item-icon">🧬</span><span>${esc(r.name)}</span></div>`).join('');});
+  registerSearchTarget('raceSearch','race-list',()=>{const races=state.data.races||[];const raceRelMatchDefs=[{key:'character',field:'relatedCharacters'},{key:'location',field:'regions'},{key:'event',field:'relatedEvents'}];const filtered=races.filter(r=>matchRelFilter(r,'raceRelFilter',raceRelMatchDefs)).filter(r=>matchSearch(r.name,'raceSearch'));return filtered.length===0?'<div class="empty-state"><div class="icon">🧬</div><p>暂无种族</p></div>':filtered.map(r=>`<div class="item-list-item${state.selectedRaceId===r.id?' selected':''}" data-race-id="${r.id}"><span class="drag-handle" style="cursor:grab;font-size:10px;color:var(--warm-gray);margin-right:4px;user-select:none" title="拖拽排序">⠿</span><span class="item-icon">🧬</span><span>${esc(r.name)}</span></div>`).join('');});
   const list = $('#race-list');
   if (!list) return;
   list.querySelectorAll('.item-list-item').forEach(item=>{
     item.onclick=(ev)=>{
-      if(ev.target.closest('.race-drag-handle')) return;
+      if(ev.target.closest('.drag-handle')) return;
       state.selectedRaceId=item.dataset.raceId;state.editingRace=false;state._forceAnimate=true;state._animateScope='detail';renderTabContent();
     };
   });
-  let dragState=null;
-  list.querySelectorAll('.race-drag-handle').forEach(handle=>{
-    handle.addEventListener('mousedown',function(ev){
-      if(ev.button!==0) return;
-      ev.preventDefault();
-      const el=this.closest('.item-list-item');
-      if(!el) return;
-      const idx=Array.from(list.querySelectorAll('.item-list-item')).indexOf(el);
-      const rect=el.getBoundingClientRect();
-      dragState={idx,el,offsetY:ev.clientY-rect.top,startX:ev.clientX,startY:ev.clientY,moved:false,ghost:null,origEl:el};
-    });
+  setupDragSort({
+    containerId: 'race-list',
+    itemSelector: '.item-list-item',
+    handleSelector: '.drag-handle',
+    getArray: () => state.data.races,
+    setArray: (arr) => { state.data.races = arr; }
   });
-  if(window._raceMM) document.removeEventListener('mousemove',window._raceMM);
-  if(window._raceMU) document.removeEventListener('mouseup',window._raceMU);
-  window._raceMM=function(ev){
-    if(!dragState) return;
-    const dx=ev.clientX-dragState.startX,dy=ev.clientY-dragState.startY;
-    if(!dragState.moved&&Math.abs(dx)+Math.abs(dy)<5) return;
-    dragState.moved=true;
-    dragState.origEl.style.opacity='0.3';
-    if(!dragState.ghost){
-      const ghost=dragState.origEl.cloneNode(true);
-      ghost.style.position='fixed';ghost.style.zIndex='10000';ghost.style.pointerEvents='none';ghost.style.opacity='0.85';
-      ghost.style.width=dragState.origEl.offsetWidth+'px';ghost.style.boxShadow='0 8px 24px rgba(0,0,0,0.18)';ghost.style.transition='none';
-      document.body.appendChild(ghost);dragState.ghost=ghost;
-    }
-    dragState.ghost.style.left=dragState.origEl.getBoundingClientRect().left+'px';
-    dragState.ghost.style.top=(ev.clientY-dragState.offsetY)+'px';
-    list.querySelectorAll('.race-drop-ind').forEach(el=>el.remove());
-    const items=list.querySelectorAll('.item-list-item');
-    for(let i=0;i<items.length;i++){
-      const r=items[i].getBoundingClientRect();
-      if(ev.clientY<r.top+r.height/2){
-        const ind=document.createElement('div');ind.className='race-drop-ind';ind.style.cssText='height:2px;background:var(--accent);border-radius:1px;margin:2px 0';
-        items[i].before(ind);break;
-      }
-      if(i===items.length-1){
-        const ind=document.createElement('div');ind.className='race-drop-ind';ind.style.cssText='height:2px;background:var(--accent);border-radius:1px;margin:2px 0';
-        items[i].after(ind);
-      }
-    }
-  };
-  window._raceMU=function(ev){
-    if(!dragState) return;
-    if(dragState.ghost) dragState.ghost.remove();
-    dragState.origEl.style.opacity='';
-    list.querySelectorAll('.race-drop-ind').forEach(el=>el.remove());
-    if(dragState.moved){
-      const items=list.querySelectorAll('.item-list-item');
-      let dropIdx=state.data.races.length;
-      for(let i=0;i<items.length;i++){
-        const r=items[i].getBoundingClientRect();
-        if(ev.clientY<r.top+r.height/2){dropIdx=i;break;}
-      }
-      const fromIdx=dragState.idx;
-      if(fromIdx!==dropIdx&&fromIdx!==dropIdx-1){
-        const arr=state.data.races;const item=arr.splice(fromIdx,1)[0];
-        const insertAt=dropIdx>fromIdx?dropIdx-1:dropIdx;
-        arr.splice(insertAt,0,item);autoSave();renderTabContent();
-      }
-    }
-    dragState=null;
-  };
-  document.addEventListener('mousemove',window._raceMM);
-  document.addEventListener('mouseup',window._raceMU);
 }

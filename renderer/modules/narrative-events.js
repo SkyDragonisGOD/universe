@@ -90,7 +90,7 @@ function renderEventList() {
     const charCount = _normLinks(e.characters).length;
     const locCount = _normLinks(e.locations).length;
     return `<div class="location-card${sel ? ' selected' : ''}" data-eid="${e.id}" style="cursor:pointer">
-      <div class="flex-between"><span class="loc-name">${esc(e.name || e.title || '未命名事件')}</span>
+      <div class="flex-between"><div style="display:flex;align-items:center;gap:6px"><span class="drag-handle" style="cursor:grab;font-size:10px;color:var(--muted);user-select:none">⠿</span><span class="loc-name">${esc(e.name || e.title || '未命名事件')}</span></div>
         <div class="flex-gap"><button class="btn btn-xs btn-icon btn-danger" style="font-size:10px" onclick="event.stopPropagation();deleteTimelineEvent('${e.id}')">×</button></div></div>
       <div class="loc-desc">${esc(e.time || '')}${e.type ? ' · ' + esc(e.type) : ''}</div>
       ${desc ? `<div style="font-size:12px;color:var(--dark-gray);margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(desc)}${(e.description||e.cause||'').length>60?'...':''}</div>` : ''}
@@ -200,7 +200,7 @@ function renderEventEditForm(e) {
 
   const bpNames = {};
   (state.data.worldBackpacks||[]).forEach(bp => { bpNames[bp.id] = bp.name; });
-  const itemPool = (state.data.items||[]).map(it => ({ id: it.id, name: `${it.icon||'📦'} ${it.name} [${bpNames[it.backpackId]||'未知背包'}]` }));
+  const itemPool = (state.data.items||[]).map(it => ({ id: it.id, name: `${it.icon||'📦'} ${it.name} [${bpNames[it.backpackId]||'未知系统'}]` }));
 
   function editLinkTags(links, pool, removeFn) {
     return links.map(l => {
@@ -332,7 +332,7 @@ function cancelEventEdit() {
 function updateEvent(key, value) {
   const e = (state.data.timeline || []).find(ev => ev.id === state.selectedEventId);
   if (!e) return;
-  if (key === 'name' && checkDuplicate(state.data.timeline, value, e.id)) { alert('已存在同名事件！'); renderTabContent(); return; }
+  if (key === 'name' && checkDuplicate(state.data.timeline, value, e.id)) { showToast('已存在同名事件！'); renderTabContent(); return; }
   e[key] = value;
   if (key === 'name') e.title = value;
   autoSave();
@@ -556,7 +556,7 @@ async function openEventItemModal() {
     return `<div class="bp-section" style="margin-bottom:8px">
       <div class="bp-header" data-bp-id="${esc(bp.id)}" style="padding:8px 0;cursor:pointer;display:flex;align-items:center;gap:6px;font-weight:600;font-size:14px;border-bottom:2px solid var(--border);user-select:none">
         <span class="bp-toggle" style="transition:transform 0.2s;font-size:10px">▶</span>
-        <span>${esc(bp.icon||'🎒')} ${esc(bp.name)}</span>
+        <span>${esc(bp.icon||'🎲')} ${esc(bp.name)}</span>
         <span style="font-size:11px;color:var(--warm-gray);font-weight:400">${bpItems.length}个物品</span>
       </div>
       <div class="bp-items" style="display:none;padding-top:4px">${itemRows}</div>
@@ -564,7 +564,7 @@ async function openEventItemModal() {
   }).join('');
 
   modal.innerHTML = `
-    <h3>选择关联物品（点击背包展开物品）</h3>
+    <h3>选择关联物品（点击系统展开物品）</h3>
     <div class="modal-select-list" style="max-height:400px;overflow-y:auto;margin:0 -8px;padding:0 8px">${bpSections || '<div class="text-xs text-muted" style="padding:8px">暂无可选项</div>'}</div>
     <div class="modal-actions">
       <button class="btn btn-outline" id="custom-link-cancel">取消</button>
@@ -647,7 +647,8 @@ function setupEvents() {
   const elList = $('#event-list');
   if (elList) {
     elList.querySelectorAll('.location-card').forEach(c => {
-      c.onclick = () => {
+      c.onclick = (ev) => {
+        if (ev.target.closest('.drag-handle') || ev.target.closest('button')) return;
         state.selectedEventId = c.dataset.eid;
         state.editingEvent = false;
         state._forceAnimate = true;
@@ -656,6 +657,13 @@ function setupEvents() {
       };
     });
   }
+  setupDragSort({
+    containerId: 'event-list',
+    itemSelector: '.location-card',
+    handleSelector: '.drag-handle',
+    getArray: () => state.data.timeline,
+    setArray: (arr) => { state.data.timeline = arr; }
+  });
 }
 
 function addTimelineEvent() {

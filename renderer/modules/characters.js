@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // 世界生成器 — 角色
 // 依赖: core/state.js, core/utils.js, core/modal.js, core/glossary.js, core/properties.js
 // ============================================================
@@ -33,7 +33,7 @@ function renderCharList() {
   filtered = filtered.filter(c => matchRelFilter(c, 'charRelFilter', charRelMatchDefs));
   filtered = filtered.filter(c => matchSearch(c.name, 'charSearch'));
   if (filtered.length===0) return '<div class="empty-state"><div class="icon">👤</div><p>暂无角色</p></div>';
-  return filtered.map(c=>`<div class="char-list-item${state.selectedCharacterId===c.id?' selected':''}" data-char-id="${c.id}"><span>${esc(c.name)}</span><span class="char-role">${esc(c.role||'')}</span></div>`).join('');
+  return filtered.map(c=>`<div class="char-list-item${state.selectedCharacterId===c.id?' selected':''}" data-char-id="${c.id}"><span class="drag-handle" style="cursor:grab;font-size:10px;color:var(--muted);user-select:none">⠿</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span><span class="char-role">${esc(c.role||'')}</span></div>`).join('');
 }
 
 function renderCharDetail() {
@@ -112,7 +112,7 @@ function renderCharWikiView(c) {
       const bpItems = (state.data.items||[]).filter(i=>i.backpackId===bp.id && selectedIds.includes(i.id));
       if (bpItems.length === 0) return '';
       return `<div class="wiki-section">
-        <div class="wiki-section-title">🎒 ${esc(bp.name)}</div>
+        <div class="wiki-section-title">🎲 ${esc(bp.name)}</div>
         <div class="wiki-tags">${bpItems.map(item => `<span class="wiki-tag item" style="cursor:pointer" onclick="showItemDetail('${item.id}')">${item.icon||'📦'} ${esc(item.name)}</span>`).join('')}</div>
       </div>`;
     }).join('')}
@@ -161,6 +161,7 @@ function renderCharEditForm(c) {
         ${c.avatar ? `<img src="${esc(c.avatar)}" class="char-avatar-preview" onerror="this.style.display='none'" style="width:120px;height:120px;border-radius:50%;object-fit:cover;border:3px solid var(--border)">` : `<div class="char-avatar-placeholder" style="width:120px;height:120px;border-radius:50%;background:var(--bg-alt);display:flex;align-items:center;justify-content:center;font-size:48px;border:3px dashed var(--border)">👤</div>`}
         <button class="btn btn-xs btn-outline" onclick="uploadCharAvatar()">📷 上传</button>
         ${c.avatar ? `<button class="btn btn-xs btn-outline" onclick="removeCharAvatar()">🗑️ 移除</button>` : ''}
+        <button class="btn btn-xs btn-outline" onclick="selectAvatarFromResources()">📦 从资源库选择</button>
       </div>
     </div>
 
@@ -201,8 +202,8 @@ function renderCharEditForm(c) {
     ${backpacks.length===0 ? '' : backpacks.map(bp => {
       const bpItems = (state.data.items||[]).filter(i=>i.backpackId===bp.id);
       const selectedItems = (c.backpackItems||{})[bp.id]||[];
-      return `<div class="card"><h3>🎒 ${esc(bp.name)}</h3>
-        ${bpItems.length===0 ? '<div class="text-xs text-muted" style="padding:4px 0">此背包为空</div>' :
+      return `<div class="card"><h3>🎲 ${esc(bp.name)}</h3>
+        ${bpItems.length===0 ? '<div class="text-xs text-muted" style="padding:4px 0">此系统为空</div>' :
         `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
           <span class="text-xs text-muted">已选 ${selectedItems.length} 项</span>
           <button class="btn btn-xs btn-outline" onclick="openBackpackSelectModal('${bp.id}')">选择物品</button>
@@ -230,7 +231,7 @@ function renderCharEditForm(c) {
       ${_normLinks(c.relatedVolumes).length>0?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${_normLinks(c.relatedVolumes).map(vl=>{const vol=(state.data.outline||[]).find((v,i)=>i===parseInt(vl.id)||v.id===vl.id);return vol?`<span class="wiki-tag item">📖 ${esc(vol.title||'未命名卷')}<button class="btn btn-xs btn-icon btn-danger" style="font-size:8px;margin-left:2px" onclick="removeCharVolume('${esc(vl.id)}')">×</button></span>`:'';}).join('')}</div>`:''}
     </div>
 
-    <div class="card"><h3>🕸️ 角色关系</h3>
+    <div class="card"><h3>🕸️ 关系图表</h3>
       <p class="text-sm text-muted mb-8">为该角色关联其他角色并标注关系类型</p>
       ${rels.map((r,i) => {
         const isSource = r.sourceId === c.id;
@@ -269,7 +270,7 @@ function startCharEdit() {
 function saveCharEdit() {
   const c = (state.data.characters||[]).find(ch=>ch.id===state.selectedCharacterId);
   if (c && checkDuplicate(state.data.characters, c.name, c.id)) {
-    alert('已存在同名角色！');
+    showToast('已存在同名角色！');
     return;
   }
   _charEditSnapshot = null;
@@ -306,10 +307,10 @@ async function openBackpackSelectModal(bpId) {
   const bp = (state.data.worldBackpacks||[]).find(b=>b.id===bpId);
   if (!bp) return;
   const bpItems = (state.data.items||[]).filter(i=>i.backpackId===bpId);
-  if (bpItems.length === 0) { alert('此背包为空'); return; }
+  if (bpItems.length === 0) { showToast('此系统为空'); return; }
   const selectedIds = (c.backpackItems||{})[bpId]||[];
   const options = bpItems.map(i=>({id:i.id, name:(i.icon||'📦')+' '+i.name}));
-  const result = await customSelectModal('🎒 '+bp.name+' — 选择物品', options, selectedIds);
+  const result = await customSelectModal('🎲 '+bp.name+' — 选择物品', options, selectedIds);
   if (result === null) return;
   if (!c.backpackItems) c.backpackItems = {};
   c.backpackItems[bpId] = result;
@@ -359,49 +360,49 @@ function showPreviewCard(type, id, event, contextDesc) {
     if (sameTrigger) { closePreviewCard(); return; }
     existing.remove();
   }
-  let title = '', subtitle = '', detail = '', navFn = '';
+  let title = '', subtitle = '', detail = '', explorerType = type, explorerId = id;
   if (type === 'location') {
     const loc = (state.data.locations||[]).find(l=>l.id===id||l.name===id);
     if (!loc) return;
     title = '📍 ' + esc(loc.name);
     subtitle = loc.category ? `分类: ${esc(loc.category)}` : '';
     detail = (loc.description||'').substring(0, 100);
-    navFn = `navigateToLocation('${esc(loc.id)}')`;
+    explorerId = loc.id;
   } else if (type === 'faction') {
     const f = (state.data.factions||[]).find(fa=>fa.id===id||fa.name===id);
     if (!f) return;
     title = '🏰 ' + esc(f.name);
     subtitle = f.type ? `类型: ${esc(f.type)}` : '';
     detail = (f.description||'').substring(0, 100);
-    navFn = `navigateToFaction('${esc(f.id)}')`;
+    explorerId = f.id;
   } else if (type === 'character') {
     const ch = (state.data.characters||[]).find(c=>c.id===id||c.name===id);
     if (!ch) return;
     title = '👤 ' + esc(ch.name);
     subtitle = [ch.role, ...(Array.isArray(ch.race)?ch.race:ch.race?[ch.race]:[]), ch.gender].filter(Boolean).join(' · ');
     detail = (ch.personality||ch.appearance||ch.background||'').substring(0, 100);
-    navFn = `navigateToCharacter('${esc(ch.id)}')`;
+    explorerId = ch.id;
   } else if (type === 'race') {
     const r = (state.data.races||[]).find(ra=>ra.id===id||ra.name===id);
     if (!r) return;
     title = '🧬 ' + esc(r.name);
     subtitle = r.category ? `分类: ${esc(r.category)}` : '';
     detail = (r.traits||r.description||'').substring(0, 100);
-    navFn = `navigateToRace('${esc(r.id)}')`;
+    explorerId = r.id;
   } else if (type === 'item') {
     const it = (state.data.items||[]).find(i=>i.id===id||i.name===id);
     if (!it) return;
     title = (it.icon||'📦') + ' ' + esc(it.name);
     subtitle = [it.type, getRarityLabel(it.rarity)||''].filter(Boolean).join(' · ');
     detail = (it.description||it.effects||'').substring(0, 100);
-    navFn = `showItemDetail('${esc(it.id)}')`;
+    explorerId = it.id;
   } else if (type === 'event') {
     const ev = (state.data.timeline||[]).find(e=>e.id===id||e.name===id);
     if (!ev) return;
     title = '⚡ ' + esc(ev.name || ev.title);
     subtitle = [ev.time, ev.type].filter(Boolean).join(' · ');
     detail = (ev.description||'').substring(0, 100);
-    navFn = `navigateToEvent('${esc(ev.id)}')`;
+    explorerId = ev.id;
   } else if (type === 'power') {
     const idx = parseInt(id);
     const p = (state.data.powers||[])[idx];
@@ -410,8 +411,31 @@ function showPreviewCard(type, id, event, contextDesc) {
     const levelNames = (p.levelEntries||[]).map(le=>le.name).filter(Boolean);
     subtitle = levelNames.length > 0 ? `等级: ${levelNames.join(' → ')}` : '';
     detail = (p.description||'').substring(0, 100);
-    navFn = `switchTab('powers')`;
+    explorerType = 'power';
+    explorerId = id;
+  } else if (type === 'outline_volume') {
+    const vi = parseInt(id.replace('vol_',''));
+    const vol = (state.data.outline||[])[vi];
+    if (!vol) return;
+    title = '📖 ' + esc(vol.title || '第'+(vi+1)+'卷');
+    subtitle = '大纲卷';
+    detail = (vol.summary||'').substring(0, 100);
+    explorerType = 'outline_volume';
+    explorerId = id;
+  } else if (type === 'outline_chapter') {
+    const parts = id.replace('chap_','').split('_');
+    const vi = parseInt(parts[0]);
+    const ci = parseInt(parts[1]);
+    const vol = (state.data.outline||[])[vi];
+    const chap = vol && vol.chapters ? vol.chapters[ci] : null;
+    if (!chap) return;
+    title = '📄 ' + esc(chap.title || '第'+(ci+1)+'章');
+    subtitle = vol ? esc(vol.title||'第'+(vi+1)+'卷') : '';
+    detail = (chap.summary||'').substring(0, 100);
+    explorerType = 'outline_chapter';
+    explorerId = id;
   }
+  const navFn = `navigateToExplorerDetail('${esc(explorerType)}','${esc(explorerId)}')`;
   const contextHtml = contextDesc ? `<div style="color:var(--accent);font-size:12px;margin-bottom:6px;padding:4px 8px;background:var(--bg-alt);border-radius:var(--radius-xs);border-left:3px solid var(--accent)">${esc(contextDesc)}</div>` : '';
   const card = document.createElement('div');
   card.className = 'preview-card';
@@ -481,7 +505,14 @@ function navigateToCharacter(characterId) { pushNavHistory(); state.activeTab = 
 function setupCharacters() {
   registerSearchTarget('charSearch','char-list',renderCharList);
   const charList = $('#char-list');
-  if (charList) { charList.querySelectorAll('.char-list-item').forEach(item=>{item.onclick=()=>{state.selectedCharacterId=item.dataset.charId;state.editingCharacter=false;state._forceAnimate=true;state._animateScope='detail';renderTabContent();};});}
+  if (charList) { charList.querySelectorAll('.char-list-item').forEach(item=>{item.onclick=(ev)=>{if(ev.target.closest('.drag-handle'))return;state.selectedCharacterId=item.dataset.charId;state.editingCharacter=false;state._forceAnimate=true;state._animateScope='detail';renderTabContent();};});}
+  setupDragSort({
+    containerId: 'char-list',
+    itemSelector: '.char-list-item',
+    handleSelector: '.drag-handle',
+    getArray: () => state.data.characters,
+    setArray: (arr) => { state.data.characters = arr; }
+  });
 }
 
 function refreshCharList() {
@@ -503,6 +534,7 @@ async function uploadCharAvatar() {
       const result = await window.api.selectImageFile();
       if (result && result.dataUrl) {
         c.avatar = result.dataUrl;
+        autoSaveAvatarToResources(c.name, result.dataUrl);
         autoSave();
         renderTabContent();
         return;
@@ -517,6 +549,7 @@ async function uploadCharAvatar() {
       const reader = new FileReader();
       reader.onload = (ev) => {
         c.avatar = ev.target.result;
+        autoSaveAvatarToResources(c.name, ev.target.result);
         autoSave();
         renderTabContent();
       };
@@ -524,7 +557,7 @@ async function uploadCharAvatar() {
     };
     input.click();
   } catch (e) {
-    alert('上传失败：' + (e.message || '未知错误'));
+    showToast('上传失败：' + (e.message || '未知错误'));
   }
 }
 
@@ -534,6 +567,22 @@ function removeCharAvatar() {
   c.avatar = '';
   autoSave();
   renderTabContent();
+}
+
+async function selectAvatarFromResources() {
+  const c = (state.data.characters||[]).find(ch=>ch.id===state.selectedCharacterId);
+  if (!c) return;
+  const imageResources = (state.data.resources||[]).filter(r=>r.imageData);
+  if (imageResources.length === 0) { showToast('资源库中暂无图片资源，请先上传'); return; }
+  const options = imageResources.map(r => ({ id: r.id, name: r.title || '未命名' }));
+  const selectedId = await customSelectModal('📦 选择资源图片', options, [], 1);
+  if (!selectedId || selectedId.length === 0) return;
+  const res = imageResources.find(r=>r.id===selectedId[0]);
+  if (res && res.imageData) {
+    c.avatar = res.imageData;
+    autoSave();
+    renderTabContent();
+  }
 }
 
 function toggleCharBackpackItem(itemId, checked) {
@@ -555,7 +604,7 @@ async function addCharRelation() {
   const c = (state.data.characters||[]).find(ch=>ch.id===state.selectedCharacterId);
   if (!c) return;
   const chars = (state.data.characters||[]).filter(ch=>ch.id!==c.id);
-  if (chars.length === 0) { alert('请先添加其他角色！'); return; }
+  if (chars.length === 0) { showToast('请先添加其他角色！'); return; }
   const modal = $('#modal-box');
   const overlay = $('#modal-overlay');
   modal.innerHTML = `
@@ -574,7 +623,7 @@ async function addCharRelation() {
       const targetId = $('#char-rel-target').value;
       const type = $('#char-rel-type').value;
       const desc = $('#char-rel-desc').value;
-      if (!type || !type.trim()) { alert('请填写关系类型'); return; }
+      if (!type || !type.trim()) { showToast('请填写关系类型'); return; }
       state.data.characterRelations.push({ id: uid(), sourceId: c.id, targetId, type: type.trim(), description: desc||'' });
       autoSave();
       if (state.editingCharacter) { const d=$('#char-detail'); if(d) d.innerHTML=renderCharEditForm(c); } else { renderTabContent(); }
@@ -607,7 +656,7 @@ async function aiGenCharacter() {
   }
 }
 
-function updateCharacter(key,value) { const c=(state.data.characters||[]).find(ch=>ch.id===state.selectedCharacterId); if (c) { if (key==='name'&&checkDuplicate(state.data.characters,value,c.id)){alert('已存在同名角色！');renderTabContent();return;} c[key]=value; autoSave(); } }
+function updateCharacter(key,value) { const c=(state.data.characters||[]).find(ch=>ch.id===state.selectedCharacterId); if (c) { if (key==='name'&&checkDuplicate(state.data.characters,value,c.id)){showToast('已存在同名角色！');renderTabContent();return;} c[key]=value; autoSave(); } }
 function setCharCustomProp(propId, value) { const c=(state.data.characters||[]).find(ch=>ch.id===state.selectedCharacterId); if (!c) return; if (!c.customProps) c.customProps = {}; c.customProps['cp_'+propId] = value; autoSave(); }
 function updateCharDim(key,value) { const c=(state.data.characters||[]).find(ch=>ch.id===state.selectedCharacterId); if (c) { c[key]=value; autoSave(); } }
 function toggleCharSkill(skillName,checked) { const c=(state.data.characters||[]).find(ch=>ch.id===state.selectedCharacterId); if (!c) return; if (!c.skills) c.skills=[]; if (checked) { if (!c.skills.includes(skillName)) c.skills.push(skillName); } else { c.skills=c.skills.filter(s=>s!==skillName); } autoSave(); }
@@ -642,7 +691,7 @@ function removeCharEvent(eid) { const c=(state.data.characters||[]).find(ch=>ch.
 async function openCharEventModal() {
   const c=(state.data.characters||[]).find(ch=>ch.id===state.selectedCharacterId); if (!c) return;
   const events=collectGlossary('event');
-  if (events.length===0){alert('暂无事件');return;}
+  if (events.length===0){showToast('暂无事件');return;}
   const result=await customLinkModal('⚡ 选择关联事件',events,c.relatedEvents||[],'简述关系');
   if (result===null) return;
   const oldIds=_linkIds(c.relatedEvents);
@@ -655,7 +704,7 @@ async function openCharEventModal() {
 async function openCharVolumeModal() {
   const c=(state.data.characters||[]).find(ch=>ch.id===state.selectedCharacterId); if (!c) return;
   const outline=state.data.outline||[];
-  if(outline.length===0){alert('暂无卷');return;}
+  if(outline.length===0){showToast('暂无卷');return;}
   const volItems=outline.map((v,i)=>({id:String(i),name:v.title||('第'+(i+1)+'卷')}));
   const existingIds=_normLinks(c.relatedVolumes||[]).map(l=>l.id);
   const result=await customSelectModal('📑 选择关联卷',volItems,existingIds);

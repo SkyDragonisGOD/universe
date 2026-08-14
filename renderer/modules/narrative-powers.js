@@ -60,7 +60,7 @@ function renderPowerItem(p,i,customProps) {
   }).join('');
 
   return `<div class="power-item" style="border:1px solid var(--border);border-radius:var(--radius-sm);padding:16px;margin-bottom:12px;background:var(--bg-alt)">
-    <div class="flex-between" style="margin-bottom:8px"><strong style="font-size:16px">${esc(p.name||'未命名体系')}</strong><button class="btn btn-xs btn-danger" onclick="deletePower(${i})">×</button></div>
+    <div class="flex-between" style="margin-bottom:8px"><div style="display:flex;align-items:center;gap:6px"><span class="drag-handle" style="cursor:grab;font-size:10px;color:var(--muted);user-select:none">⠿</span><strong style="font-size:16px">${esc(p.name||'未命名体系')}</strong></div><button class="btn btn-xs btn-danger" onclick="deletePower(${i})">×</button></div>
     <div class="form-group"><label>体系名称</label><input value="${esc(p.name||'')}" onchange="updatePower(${i},'name',this.value)"></div>
     <div class="form-group"><label>描述</label><textarea rows="3" onchange="updatePower(${i},'description',this.value)">${esc(p.description||'')}</textarea></div>
     <div class="form-group"><label>等级/境界</label>
@@ -84,7 +84,7 @@ function renderPowerItem(p,i,customProps) {
   </div>`;
 }
 
-function setupPowers() { registerSearchTarget('powerSearch','powers-list',()=>renderPowers()); }
+function setupPowers() { registerSearchTarget('powerSearch','powers-list',()=>renderPowers()); setupDragSort({ containerId:'powers-list', itemSelector:'.power-item', handleSelector:'.drag-handle', getArray:()=>state.data.powers, setArray:(arr)=>{state.data.powers=arr;} }); }
 function addPower() { if (!state.data.powers) state.data.powers=[]; state.data.powers.push({name:'',description:'',levels:[],levelEntries:[],rules:'',customProps:{},relatedPowers:[]}); autoSave(); renderTabContent(); }
 async function aiGenPowers() { const el=$('#ai-powers-result'); const text=await runAI(window.api.aiGeneratePowerSystem(state.data),el); if (text) { const arr=tryParseJSONArray(text)||tryParseJSON(text); if (arr&&Array.isArray(arr)) { if (!state.data.powers) state.data.powers=[]; arr.forEach(p=>state.data.powers.push({name:p.name||p.title||'',description:p.description||'',levels:p.levels||[],levelEntries:(p.levels||[]).map(l=>typeof l==='object'?l:{name:l,desc:''}),rules:p.rules||'',customProps:{},relatedPowers:[]})); autoSave(); renderTabContent(); } } }
 function updatePower(i,key,value) { if (state.data.powers&&state.data.powers[i]) { if (key==='levels'&&typeof value==='string') state.data.powers[i][key]=value.split('\n').filter(Boolean); else state.data.powers[i][key]=value; autoSave(); } }

@@ -83,10 +83,10 @@ async function openProject(id) {
   ensureData('items', []);
   ensureData('timeline', []);
   ensureData('timelineOrder', []);
+  ensureData('encyclopediaCategories', []);
+  ensureData('encyclopediaSubCategories', []);
+  ensureData('encyclopediaItems', []);
 
-  if (!state.data.realismFantasy || !state.data.realismFantasy.entries) {
-    state.data.realismFantasy = { entries: {}, customNodes: [], globalNote: '' };
-  }
   showScreen('editor');
   $('#editor-title').textContent = state.data.project.name;
   const tabNav = $('#tab-nav');
@@ -103,7 +103,7 @@ async function createProject() {
   try {
     const result = await window.api.createProject(name);
     if (result) { state.projects.unshift({ id: result.id, name, createdAt: result.data.project.createdAt, lastModified: result.data.project.createdAt }); renderProjectList(); openProject(result.id); }
-  } catch(e) { console.error('[createProject] error:', e); alert('创建失败: ' + e.message); }
+  } catch(e) { console.error('[createProject] error:', e); showToast('创建失败: ' + e.message); }
 }
 
 async function renameProject(id) {
@@ -132,7 +132,7 @@ async function importProject() {
 async function exportProject() { if (state.currentProjectId) await window.api.exportProjectZip(state.currentProjectId); }
 
 async function saveProject() {
-  if (state.currentProjectId && state.data) { await window.api.saveProject(state.currentProjectId, state.data); alert('保存成功！'); }
+  if (state.currentProjectId && state.data) { await window.api.saveProject(state.currentProjectId, state.data); showToast('保存成功！'); }
 }
 
 // ============================================================
@@ -253,6 +253,8 @@ function renderTabs() {
       state.selectedRaceId = null;
       state.selectedItemId = null;
       state.selectedEventId = null;
+      state.selectedEncyclopediaCatId = null;
+      state.selectedEncyclopediaSubId = null;
       state.locationTagFilter = null;
       renderTabs();
       renderTabContent();
@@ -275,7 +277,7 @@ function render() { renderTabs(); renderTabContent(); }
 function renderTabContent() {
   const container = $('#tab-content');
   const fn = {
-    overview: renderOverview, worldview: renderWorldview, realism: renderRealism,
+    overview: renderOverview, worldview: renderWorldview, encyclopedia: [renderEncyclopedia, setupEncyclopedia],
     constitution: [renderConstitution, setupConstitution], locations: [renderLocations, setupLocations],
     characters: [renderCharacters, setupCharacters], relations: [renderRelations, setupRelations],
     factions: [renderFactions, setupFactions], races: [renderRaces, setupRaces], items: [renderItems, setupItems],

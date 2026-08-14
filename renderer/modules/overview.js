@@ -14,13 +14,17 @@ function renderOverview() {
     <div class="ai-section-actions"><button class="btn btn-ai btn-sm" onclick="aiGenSynopsis()">🤖 AI 生成简介</button><button class="btn btn-ai btn-sm" onclick="aiGenAllWorldview()">🤖 AI 一键生成世界观</button></div>
     <div id="ai-overview-result"></div></div>
     <div class="card"><h3>数据统计</h3><div class="grid-3">
-      ${['地点','角色','势力','时间线','关系','宪法','大纲'].map((k,i) => {
-        const keys = ['locations','characters','factions','timeline','characterRelations','constitution','outline'];
-        return `<div class="attr-item"><div class="attr-name">${k}</div><div class="attr-value">${(state.data[keys[i]]||[]).length}</div></div>`;
+      <div class="attr-item"><div class="attr-name">📚 词条总数</div><div class="attr-value">${getAllExplorerEntries().length}</div></div>
+      ${[['地点','locations'],['角色','characters'],['势力','factions'],['关系图','characterRelations'],['大纲','outline'],['力量体系','powers']].map(([label,key]) => {
+        return `<div class="attr-item"><div class="attr-name">${label}</div><div class="attr-value">${(state.data[key]||[]).length}</div></div>`;
       }).join('')}
-      ${(state.data.worldBackpacks||[]).map(bp => {
+      ${(state.data.worldBackpacks||[]).filter(bp => (state.data.items||[]).filter(i=>i.backpackId===bp.id).length > 0).map(bp => {
         const count = (state.data.items||[]).filter(i=>i.backpackId===bp.id).length;
-        return `<div class="attr-item"><div class="attr-name">🎒 ${esc(bp.name)}</div><div class="attr-value">${count}</div></div>`;
+        return `<div class="attr-item"><div class="attr-name">🎲 ${esc(bp.name)}</div><div class="attr-value">${count}</div></div>`;
+      }).join('')}
+      ${(state.data.encyclopediaSubCategories||[]).filter(sub => (state.data.encyclopediaItems||[]).filter(i=>i.subCategoryId===sub.id).length > 0).map(sub => {
+        const itemCount = (state.data.encyclopediaItems||[]).filter(i=>i.subCategoryId===sub.id).length;
+        return `<div class="attr-item"><div class="attr-name">${sub.icon||'📄'} ${esc(sub.name)}</div><div class="attr-value">${itemCount}</div></div>`;
       }).join('')}</div></div>
     <div class="card"><h3>🤖 AI 设置</h3><div class="llm-bar" id="llm-status-bar"><span class="status-dot disconnected"></span> 未配置 · <button class="btn btn-xs btn-outline" onclick="showLLMSettings()">配置</button></div></div>`;
 }

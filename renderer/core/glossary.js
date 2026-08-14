@@ -7,8 +7,11 @@ const CAT_TYPE_LABELS = {
   factionType: '🏰 势力类型',
   category: '📍 地点分类',
   itemType: '📦 物品类型',
-  eventType: '⚡ 事件类型'
+  eventType: '⚡ 事件类型',
+  resourceType: '📦 资源类别'
 };
+
+const SYSTEM_LOCKED_CATEGORIES = { resourceType: ['关系图', '头像'] };
 
 function collectGlossary(type) {
   const d = state.data;
@@ -23,12 +26,14 @@ function collectGlossary(type) {
     case 'factionType': { const names=cats.map(c=>c.name); const existing=[...new Set((d.factions||[]).map(f=>f.type).filter(Boolean))]; return [...new Set([...names,...existing])]; }
     case 'itemType': { const names=cats.map(c=>c.name); const existing=[...new Set((d.items||[]).map(i=>i.type).filter(Boolean))]; return [...new Set([...names,...existing])]; }
     case 'eventType': { const names=cats.map(c=>c.name); const existing=[...new Set((d.timeline||[]).map(e=>e.type).filter(Boolean))]; return [...new Set([...names,...existing])]; }
+    case 'resourceType': { const names=cats.map(c=>c.name); const existing=[...new Set((d.resources||[]).map(r=>r.category).filter(Boolean))]; return [...new Set([...names,...existing])]; }
     case 'skills': return [...new Set((d.characters||[]).flatMap(c => c.skills||[]))].sort();
     case 'faction': return (d.factions||[]).map(f => ({ id: f.id, name: f.name }));
     case 'location': return (d.locations||[]).map(l => ({ id: l.id, name: l.name }));
     case 'character': return (d.characters||[]).map(c => ({ id: c.id, name: c.name }));
     case 'event': return (d.timeline||[]).map(e => ({ id: e.id, name: e.name || e.title || '未命名事件' }));
     case 'item': return (d.items||[]).map(i => ({ id: i.id, name: i.name }));
+    case 'encyclopediaSub': return (d.encyclopediaSubCategories||[]).map(s => ({ id: s.id, name: s.name }));
     default: return [];
   }
 }
@@ -72,7 +77,7 @@ async function addCategory(type, callback) {
   const name = await customPrompt('新增类别名称', '');
   if (!name||!name.trim()) return;
   if (!state.data.categories) state.data.categories=[];
-  if (state.data.categories.find(c=>c.type===type&&c.name===name.trim())) { alert('该类别已存在'); return; }
+  if (state.data.categories.find(c=>c.type===type&&c.name===name.trim())) { showToast('该类别已存在'); return; }
   const desc = await customPrompt('类别简述（可留空）', '');
   state.data.categories.push({id:uid(),type,name:name.trim(),description:desc||''});
   autoSave();
@@ -167,7 +172,7 @@ function renderCategoryManagerUI() {
 async function addCategoryToManager(type) {
   const name = await customPrompt('新增类别名称', '');
   if (!name || !name.trim()) return;
-  if ((state.data.categories||[]).find(c => c.type === type && c.name === name.trim())) { alert('该类别已存在'); return; }
+  if ((state.data.categories||[]).find(c => c.type === type && c.name === name.trim())) { showToast('该类别已存在'); return; }
   const desc = await customPrompt('类别简述（可留空）', '');
   if (!state.data.categories) state.data.categories = [];
   const newCat = { id: uid(), type, name: name.trim(), description: desc || '' };
@@ -183,7 +188,7 @@ async function editCategoryInManager(catId) {
   const name = await customPrompt('类别名称', cat.name);
   if (name === null) return;
   if (name && name.trim() && name.trim() !== cat.name) {
-    if ((state.data.categories||[]).find(c => c.type === cat.type && c.name === name.trim() && c.id !== catId)) { alert('该类别已存在'); return; }
+    if ((state.data.categories||[]).find(c => c.type === cat.type && c.name === name.trim() && c.id !== catId)) { showToast('该类别已存在'); return; }
     const oldName = cat.name;
     cat.name = name.trim();
     renameCategoryRefs(cat.type, oldName, cat.name);

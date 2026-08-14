@@ -5,11 +5,11 @@
 const TABS = [
   { id: 'overview', label: '项目概览', icon: '📋' },
   { id: 'worldview', label: '世界观', icon: '🌌' },
-  { id: 'realism', label: '真实与幻想', icon: '⚖️' },
-  { id: 'constitution', label: '世界宪法', icon: '📜' },
+  { id: 'constitution', label: '世界探索', icon: '🔭' },
+  { id: 'encyclopedia', label: '世界百科', icon: '📚' },
   { id: 'locations', label: '地点管理', icon: '📍' },
   { id: 'characters', label: '角色系统', icon: '👤' },
-  { id: 'relations', label: '角色关系', icon: '🕸️' },
+  { id: 'relations', label: '关系图表', icon: '🕸️' },
   { id: 'factions', label: '势力', icon: '🏰' },
   { id: 'races', label: '种族', icon: '🧬' },
   { id: 'items', label: '世界系统', icon: '🌍' },
@@ -18,7 +18,7 @@ const TABS = [
   { id: 'outline', label: '大纲/章节', icon: '📑' },
   { id: 'map', label: '世界地图', icon: '🗺️' },
   { id: 'timeline', label: '时间线', icon: '⏳' },
-  { id: 'rules', label: '创作规则', icon: '✏️' },
+  { id: 'rules', label: '资源库存', icon: '📦' },
   { id: 'properties', label: '属性定义', icon: '⚙️' },
   { id: 'backup', label: '备份管理', icon: '💾' }
 ];
@@ -75,6 +75,8 @@ let state = {
   selectedRaceId: null,
   selectedItemId: null,
   selectedEventId: null,
+  selectedEncyclopediaCatId: null,
+  selectedEncyclopediaSubId: null,
   _lastAnimatedTab: null,
   _forceAnimate: false,
   tagExpanded: {},

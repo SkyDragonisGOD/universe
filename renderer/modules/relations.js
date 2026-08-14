@@ -1,26 +1,183 @@
 // ============================================================
-// 世界生成器 — 角色关系
+// 世界生成器 — 关系图表
 // 依赖: core/state.js, core/utils.js, core/modal.js, core/glossary.js
 // ============================================================
 
-function renderRelations() {
-  const rels = state.data.characterRelations||[];
-  const chars = state.data.characters||[];
-  const relFilterDefs = [
-    { key:'character', label:'角色', field:'sourceId', getItems:()=>chars.map(c=>({id:c.id,name:c.name||'未命名'})) },
-    { key:'type', label:'类型', field:'type', getItems:()=>{const types=[...new Set(rels.map(r=>r.type).filter(Boolean))];return types.map(t=>({id:t,name:t}));} },
+function _getGraphEntityTypes() {
+  return [
+    { key:'character', icon:'👤', label:'角色', getData:()=>(state.data.characters||[]).map(c=>({id:c.id,name:c.name||'未命名'})) },
+    { key:'faction', icon:'🏰', label:'势力', getData:()=>(state.data.factions||[]).map(f=>({id:f.id,name:f.name||'未命名'})) },
+    { key:'location', icon:'📍', label:'地点', getData:()=>(state.data.locations||[]).map(l=>({id:l.id,name:l.name||'未命名'})) },
+    { key:'item', icon:'📦', label:'物品', getData:()=>(state.data.items||[]).map(i=>({id:i.id,name:i.name||'未命名'})) },
+    { key:'event', icon:'⚡', label:'事件', getData:()=>(state.data.timeline||[]).map(e=>({id:e.id,name:e.name||e.title||'未命名'})) },
   ];
+}
+
+function _getAllGraphEntities() {
+  const types = _getGraphEntityTypes();
+  const result = [];
+  types.forEach(t => { t.getData().forEach(d => { result.push({...d, typeKey:t.key, icon:t.icon, typeLabel:t.label}); }); });
+  return result;
+}
+
+function _getSelectedGraphSubjects() {
+  if (!state._graphSubjects) state._graphSubjects = [];
+  return state._graphSubjects;
+}
+
+function _getEntityById(id) {
+  const all = _getAllGraphEntities();
+  return all.find(x=>x.id===id) || null;
+}
+
+function _normLinks(arr) { if (!arr || !Array.isArray(arr)) return []; return arr.map(l => typeof l === 'string' ? {id:l,desc:''} : l); }
+
+function _getEntityAvatar(typeKey, id) {
+  if (typeKey === 'character') {
+    const c = (state.data.characters||[]).find(x=>x.id===id);
+    return c && c.avatar ? c.avatar : null;
+  }
+  return null;
+}
+
+function _collectAllConnections(selectedIds) {
+  const conns = [];
+  const idSet = new Set(selectedIds);
+  const chars = state.data.characters||[];
+  const factions = state.data.factions||[];
+  const locations = state.data.locations||[];
+  const items = state.data.items||[];
+  const events = state.data.timeline||[];
+
+  chars.forEach(c => {
+    if (!idSet.has(c.id)) return;
+    _normLinks(c.factions).forEach(l => { if (idSet.has(l.id)) conns.push({from:c.id,to:l.id,desc:l.desc||'所属势力',fromType:'character',toType:'faction'}); });
+    _normLinks(c.locations).forEach(l => { if (idSet.has(l.id)) conns.push({from:c.id,to:l.id,desc:l.desc||'所在地点',fromType:'character',toType:'location'}); });
+    if (c.backpackItems && typeof c.backpackItems === 'object') {
+      Object.values(c.backpackItems).forEach(idArr => {
+        (Array.isArray(idArr) ? idArr : []).forEach(itemId => {
+          if (idSet.has(itemId)) conns.push({from:c.id,to:itemId,desc:'持有物品',fromType:'character',toType:'item'});
+        });
+      });
+    }
+    _normLinks(c.relatedCharacters).forEach(l => { if (idSet.has(l.id)) conns.push({from:c.id,to:l.id,desc:l.desc||'',fromType:'character',toType:'character'}); });
+    _normLinks(c.relatedEvents).forEach(l => { if (idSet.has(l.id)) conns.push({from:c.id,to:l.id,desc:l.desc||'参与事件',fromType:'character',toType:'event'}); });
+  });
+
+  factions.forEach(f => {
+    if (!idSet.has(f.id)) return;
+    _normLinks(f.headquarters).forEach(l => { if (idSet.has(l.id)) conns.push({from:f.id,to:l.id,desc:l.desc||'据点',fromType:'faction',toType:'location'}); });
+    _normLinks(f.members).forEach(l => { if (idSet.has(l.id)) conns.push({from:f.id,to:l.id,desc:l.desc||'成员',fromType:'faction',toType:'character'}); });
+    _normLinks(f.rivals).forEach(l => { if (idSet.has(l.id)) conns.push({from:f.id,to:l.id,desc:l.desc||'敌对',fromType:'faction',toType:'faction'}); });
+    _normLinks(f.allies).forEach(l => { if (idSet.has(l.id)) conns.push({from:f.id,to:l.id,desc:l.desc||'盟友',fromType:'faction',toType:'faction'}); });
+    _normLinks(f.relatedEvents).forEach(l => { if (idSet.has(l.id)) conns.push({from:f.id,to:l.id,desc:l.desc||'相关事件',fromType:'faction',toType:'event'}); });
+  });
+
+  locations.forEach(loc => {
+    if (!idSet.has(loc.id)) return;
+    _normLinks(loc.relatedCharacters).forEach(l => { if (idSet.has(l.id)) conns.push({from:loc.id,to:l.id,desc:l.desc||'关联角色',fromType:'location',toType:'character'}); });
+    _normLinks(loc.relatedFactions).forEach(l => { if (idSet.has(l.id)) conns.push({from:loc.id,to:l.id,desc:l.desc||'驻扎势力',fromType:'location',toType:'faction'}); });
+    _normLinks(loc.events).forEach(l => { if (idSet.has(l.id)) conns.push({from:loc.id,to:l.id,desc:l.desc||'发生事件',fromType:'location',toType:'event'}); });
+  });
+
+  items.forEach(it => {
+    if (!idSet.has(it.id)) return;
+    _normLinks(it.relatedCharacters).forEach(l => { if (idSet.has(l.id)) conns.push({from:it.id,to:l.id,desc:l.desc||'关联角色',fromType:'item',toType:'character'}); });
+    _normLinks(it.relatedFactions).forEach(l => { if (idSet.has(l.id)) conns.push({from:it.id,to:l.id,desc:l.desc||'关联势力',fromType:'item',toType:'faction'}); });
+    _normLinks(it.relatedLocations).forEach(l => { if (idSet.has(l.id)) conns.push({from:it.id,to:l.id,desc:l.desc||'关联地点',fromType:'item',toType:'location'}); });
+    _normLinks(it.relatedEvents).forEach(l => { if (idSet.has(l.id)) conns.push({from:it.id,to:l.id,desc:l.desc||'关联事件',fromType:'item',toType:'event'}); });
+  });
+
+  events.forEach(ev => {
+    if (!idSet.has(ev.id)) return;
+    _normLinks(ev.characters).forEach(l => { if (idSet.has(l.id)) conns.push({from:ev.id,to:l.id,desc:l.desc||'参与角色',fromType:'event',toType:'character'}); });
+    _normLinks(ev.factions).forEach(l => { if (idSet.has(l.id)) conns.push({from:ev.id,to:l.id,desc:l.desc||'关联势力',fromType:'event',toType:'faction'}); });
+    _normLinks(ev.locations).forEach(l => { if (idSet.has(l.id)) conns.push({from:ev.id,to:l.id,desc:l.desc||'发生地点',fromType:'event',toType:'location'}); });
+    _normLinks(ev.items).forEach(l => { if (idSet.has(l.id)) conns.push({from:ev.id,to:l.id,desc:l.desc||'关联物品',fromType:'event',toType:'item'}); });
+  });
+
+  (state.data.characterRelations||[]).forEach(r => {
+    if (idSet.has(r.sourceId) && idSet.has(r.targetId)) {
+      conns.push({from:r.sourceId,to:r.targetId,desc:r.type||r.description||'',fromType:'character',toType:'character',isExplicit:true});
+    }
+  });
+
+  return conns;
+}
+
+function _buildEdgeMap(conns) {
+  const edgeMap = {};
+  conns.forEach(c => {
+    const key = [c.from, c.to].sort().join('|||');
+    if (!edgeMap[key]) edgeMap[key] = {a:c.from, b:c.to, aToB:null, bToA:null, aType:c.fromType, bType:c.toType};
+    if (c.from === edgeMap[key].a) {
+      edgeMap[key].aToB = c.desc;
+      edgeMap[key].aType = c.fromType;
+      edgeMap[key].bType = c.toType;
+    } else {
+      edgeMap[key].bToA = c.desc;
+      edgeMap[key].bType = c.fromType;
+      edgeMap[key].aType = c.toType;
+    }
+  });
+  return Object.values(edgeMap);
+}
+
+function _getGraphViewport() {
+  if (!state._graphViewport) state._graphViewport = { zoom: 1, panX: 0, panY: 0 };
+  return state._graphViewport;
+}
+
+function _screenToWorld(sx, sy) {
+  const vp = _getGraphViewport();
+  return {
+    x: (sx - vp.panX) / vp.zoom,
+    y: (sy - vp.panY) / vp.zoom
+  };
+}
+
+function renderRelations() {
+  const entityTypes = _getGraphEntityTypes();
+  const selectedSubjects = _getSelectedGraphSubjects();
+  const allConns = _collectAllConnections(selectedSubjects.length > 0 ? selectedSubjects.map(s=>s.split(':')[1]) : _getAllGraphEntities().map(e=>e.id));
+  const edges = _buildEdgeMap(allConns);
+  const vp = _getGraphViewport();
+  const zoomPct = Math.round(vp.zoom * 100);
   return `<div class="relation-layout">
     <div class="relation-list-panel">
       <div class="flex-between mb-8"><h3>📋 关系列表</h3><div class="flex-gap"><button class="btn btn-ai btn-sm" onclick="aiGenRelations()">🤖 AI 生成</button><button class="btn btn-sm btn-primary" onclick="addRelation()">+ 新建</button></div></div>
       ${renderSearchBox('relSearch')}
-      ${renderRelFilter('relRelFilter', relFilterDefs)}
       <div id="ai-relations-result"></div>
       <div id="relation-list" class="relations-list">${renderRelationList()}</div>
     </div>
     <div class="relation-detail-panel">
-      <div class="card"><h3>🕸️ 角色关系图</h3>
-        <div class="relations-canvas-container"><canvas id="relations-canvas" width="800" height="400"></canvas></div></div>
+      <div class="card"><h3>🕸️ 关系图表</h3>
+        <p class="text-sm text-muted mb-8">勾选主体，自动生成关系图（${edges.length} 条关联）· 滚轮缩放 · 右键/中键拖拽画布</p>
+        <div style="margin-bottom:8px;max-height:200px;overflow-y:auto">
+          ${entityTypes.map(t => {
+            const items = t.getData();
+            if (items.length === 0) return '';
+            return `<div style="margin-bottom:6px"><div style="font-size:11px;color:var(--muted);margin-bottom:2px">${t.icon} ${t.label}</div>
+              <div style="display:flex;flex-wrap:wrap;gap:3px">${items.map(d => {
+                const sid = t.key + ':' + d.id;
+                const isSelected = selectedSubjects.includes(sid);
+                return `<label style="display:inline-flex;align-items:center;gap:2px;font-size:11px;padding:1px 5px;border-radius:var(--radius-xs);background:${isSelected?'var(--accent-light)':'var(--bg-alt)'};cursor:pointer;border:1px solid ${isSelected?'var(--accent)':'var(--border)'}"><input type="checkbox" ${isSelected?'checked':''} onchange="toggleGraphSubject('${esc(sid)}',this.checked)" style="margin:0;width:12px;height:12px">${esc(d.name)}</label>`;
+              }).join('')}</div></div>`;
+          }).join('')}
+        </div>
+        <div class="flex-gap mb-8" style="flex-wrap:wrap">
+          <button class="btn btn-xs btn-outline" onclick="selectAllGraphSubjects()">全选</button>
+          <button class="btn btn-xs btn-outline" onclick="clearAllGraphSubjects()">清空</button>
+          <button class="btn btn-xs btn-outline" onclick="resetGraphLayout()">🔄 重置布局</button>
+          <button class="btn btn-xs btn-primary" onclick="saveCurrentGraphToResources()">💾 保存到资源库存</button>
+          <span style="display:inline-flex;align-items:center;gap:4px;margin-left:auto">
+            <button class="btn btn-xs btn-outline" onclick="graphZoom(-0.15)">➖</button>
+            <span style="font-size:11px;min-width:36px;text-align:center">${zoomPct}%</span>
+            <button class="btn btn-xs btn-outline" onclick="graphZoom(0.15)">➕</button>
+          </span>
+        </div>
+        <div class="relations-canvas-container" style="overflow:hidden;position:relative"><canvas id="relations-canvas" width="800" height="400"></canvas></div>
+      </div>
       <div id="relation-detail"></div>
     </div></div>`;
 }
@@ -30,14 +187,6 @@ function renderRelationList() {
   const chars = state.data.characters||[];
   if (rels.length===0) return '<div class="empty-state"><div class="icon">🕸️</div><p>暂无关系</p></div>';
   const filtered = rels.filter(r => {
-    const f = state.relRelFilter;
-    if (!f) return true;
-    const charIds = f.character || [];
-    const typeIds = f.type || [];
-    if (charIds.length > 0 && !charIds.includes(r.sourceId) && !charIds.includes(r.targetId)) return false;
-    if (typeIds.length > 0 && !typeIds.includes(r.type)) return false;
-    return true;
-  }).filter(r => {
     const q = (state.relSearch || '').toLowerCase().trim();
     if (!q) return true;
     const source = chars.find(c=>c.id===r.sourceId);
@@ -98,27 +247,356 @@ function updateRelationById(id, key, value) {
   if (r) { r[key] = value; autoSave(); }
 }
 
-function setupRelations() { registerSearchTarget('relSearch','relation-list',renderRelationList); try { drawRelationsGraph(); } catch(e) { console.error('drawRelationsGraph error:', e); } }
+function toggleGraphSubject(sid, checked) {
+  if (!state._graphSubjects) state._graphSubjects = [];
+  if (checked) {
+    if (!state._graphSubjects.includes(sid)) state._graphSubjects.push(sid);
+  } else {
+    state._graphSubjects = state._graphSubjects.filter(s => s !== sid);
+  }
+  delete state._graphPositions;
+  renderTabContent();
+}
 
-function drawRelationsGraph() {
+function selectAllGraphSubjects() {
+  const all = _getAllGraphEntities();
+  state._graphSubjects = all.map(e => e.typeKey + ':' + e.id);
+  delete state._graphPositions;
+  renderTabContent();
+}
+
+function clearAllGraphSubjects() {
+  state._graphSubjects = [];
+  delete state._graphPositions;
+  renderTabContent();
+}
+
+function resetGraphLayout() {
+  delete state._graphPositions;
+  state._graphViewport = { zoom: 1, panX: 0, panY: 0 };
+  drawRelationsGraph();
+}
+
+function graphZoom(delta, centerX, centerY) {
+  const vp = _getGraphViewport();
+  const oldZoom = vp.zoom;
+  vp.zoom = Math.max(0.15, Math.min(4, vp.zoom + delta));
+  if (centerX !== undefined && centerY !== undefined) {
+    vp.panX = centerX - (centerX - vp.panX) * (vp.zoom / oldZoom);
+    vp.panY = centerY - (centerY - vp.panY) * (vp.zoom / oldZoom);
+  }
+  drawRelationsGraph();
+  const zoomLabel = document.querySelector('.flex-gap.mb-8 span[style*="min-width"]');
+  if (zoomLabel) zoomLabel.textContent = Math.round(vp.zoom * 100) + '%';
+}
+
+async function saveCurrentGraphToResources() {
+  const subjects = _getSelectedGraphSubjects();
+  if (subjects.length === 0) { showToast('请先勾选主体'); return; }
+  const entities = subjects.map(sid => {
+    const [typeKey, id] = sid.split(':');
+    return _getEntityById(id) || {name:'未知'};
+  });
+  const names = entities.map(e=>e.name).join('、');
+  const title = await customPrompt('关系图标题', names + ' 关系图');
+  if (!title) return;
+  const note = await customPrompt('备注（可选）', '');
+  const canvas = $('#relations-canvas');
+  const imageData = canvas ? canvas.toDataURL('image/png') : '';
+  saveRelationGraphAsResource(subjects, title, note || '', imageData);
+}
+
+function setupRelations() {
+  registerSearchTarget('relSearch','relation-list',renderRelationList);
+  try { drawRelationsGraph(); _setupCanvasInteraction(); } catch(e) { console.error('drawRelationsGraph error:', e); }
+}
+
+function _getGraphPositions() {
+  if (!state._graphPositions) state._graphPositions = {};
+  return state._graphPositions;
+}
+
+function _setupCanvasInteraction() {
+  const canvas = $('#relations-canvas');
+  if (!canvas) return;
+  let draggingNode = null;
+  let dragOffsetX = 0, dragOffsetY = 0;
+  let panning = false;
+  let panStartX = 0, panStartY = 0;
+  let panStartPanX = 0, panStartPanY = 0;
+
+  canvas.onmousedown = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const world = _screenToWorld(sx, sy);
+    const positions = _getGraphPositions();
+    const nodeRadius = 20;
+    if (e.button === 0) {
+      for (const id in positions) {
+        const p = positions[id];
+        const dx = world.x - p.x, dy = world.y - p.y;
+        if (dx*dx + dy*dy <= (nodeRadius+6)*(nodeRadius+6)) {
+          draggingNode = id;
+          dragOffsetX = dx;
+          dragOffsetY = dy;
+          canvas.style.cursor = 'grabbing';
+          e.preventDefault();
+          return;
+        }
+      }
+      panning = true;
+      panStartX = e.clientX;
+      panStartY = e.clientY;
+      const vp = _getGraphViewport();
+      panStartPanX = vp.panX;
+      panStartPanY = vp.panY;
+      canvas.style.cursor = 'move';
+      e.preventDefault();
+    } else if (e.button === 1 || e.button === 2) {
+      panning = true;
+      panStartX = e.clientX;
+      panStartY = e.clientY;
+      const vp = _getGraphViewport();
+      panStartPanX = vp.panX;
+      panStartPanY = vp.panY;
+      canvas.style.cursor = 'move';
+      e.preventDefault();
+    }
+  };
+
+  canvas.onmousemove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const world = _screenToWorld(sx, sy);
+    const positions = _getGraphPositions();
+
+    if (draggingNode) {
+      if (positions[draggingNode]) {
+        positions[draggingNode].x = world.x - dragOffsetX;
+        positions[draggingNode].y = world.y - dragOffsetY;
+        drawRelationsGraph();
+      }
+      return;
+    }
+
+    if (panning) {
+      const vp = _getGraphViewport();
+      vp.panX = panStartPanX + (e.clientX - panStartX);
+      vp.panY = panStartPanY + (e.clientY - panStartY);
+      drawRelationsGraph();
+      return;
+    }
+
+    let onNode = false;
+    for (const id in positions) {
+      const p = positions[id];
+      const dx = world.x - p.x, dy = world.y - p.y;
+      if (dx*dx + dy*dy <= 676) { onNode = true; break; }
+    }
+    canvas.style.cursor = onNode ? 'grab' : 'default';
+  };
+
+  canvas.onmouseup = (e) => {
+    if (draggingNode) { draggingNode = null; canvas.style.cursor = 'default'; }
+    if (panning) { panning = false; canvas.style.cursor = 'default'; }
+  };
+
+  canvas.onmouseleave = () => {
+    if (draggingNode) { draggingNode = null; }
+    if (panning) { panning = false; }
+    canvas.style.cursor = 'default';
+  };
+
+  canvas.onwheel = (e) => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const mouseX = e.clientX - rect.left;
+    const mouseY = e.clientY - rect.top;
+    const delta = e.deltaY > 0 ? -0.08 : 0.08;
+    graphZoom(delta, mouseX, mouseY);
+  };
+
+  canvas.oncontextmenu = (e) => e.preventDefault();
+}
+
+function _drawArrow(ctx, fromX, fromY, toX, toY, color, label, offset) {
+  const dx = toX - fromX, dy = toY - fromY;
+  const len = Math.sqrt(dx*dx + dy*dy);
+  if (len < 1) return;
+  const nx = dx/len, ny = dy/len;
+  const px = -ny, py = nx;
+  const off = offset || 0;
+  const sx = fromX + nx*22 + px*off, sy = fromY + ny*22 + py*off;
+  const ex = toX - nx*22 + px*off, ey = toY - ny*22 + py*off;
+  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey);
+  ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.7; ctx.stroke(); ctx.globalAlpha = 1;
+  const headLen = 8;
+  const angle = Math.atan2(ey-sy, ex-sx);
+  ctx.beginPath();
+  ctx.moveTo(ex, ey);
+  ctx.lineTo(ex - headLen*Math.cos(angle-Math.PI/6), ey - headLen*Math.sin(angle-Math.PI/6));
+  ctx.moveTo(ex, ey);
+  ctx.lineTo(ex - headLen*Math.cos(angle+Math.PI/6), ey - headLen*Math.sin(angle+Math.PI/6));
+  ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
+  if (label) {
+    const mx = (sx+ex)/2 + px*10, my = (sy+ey)/2 + py*10;
+    ctx.fillStyle = color; ctx.font = '9px "Microsoft YaHei",sans-serif'; ctx.textAlign = 'center';
+    const displayLabel = label.length > 6 ? label.slice(0,6)+'…' : label;
+    ctx.fillText(displayLabel, mx, my);
+  }
+}
+
+function _drawLine(ctx, fromX, fromY, toX, toY, color, label) {
+  const dx = toX - fromX, dy = toY - fromY;
+  const len = Math.sqrt(dx*dx + dy*dy);
+  if (len < 1) return;
+  const nx = dx/len, ny = dy/len;
+  const px = -ny, py = nx;
+  const sx = fromX + nx*22, sy = fromY + ny*22;
+  const ex = toX - nx*22, ey = toY - ny*22;
+  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey);
+  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.globalAlpha = 0.6; ctx.stroke(); ctx.globalAlpha = 1;
+  if (label) {
+    const mx = (sx+ex)/2, my = (sy+ey)/2 - 8;
+    ctx.fillStyle = '#57534e'; ctx.font = '10px "Microsoft YaHei",sans-serif'; ctx.textAlign = 'center';
+    const displayLabel = label.length > 8 ? label.slice(0,8)+'…' : label;
+    ctx.fillText(displayLabel, mx, my);
+  }
+}
+
+const _graphAvatarCache = {};
+
+function _loadAvatarForGraph(typeKey, id) {
+  const avatar = _getEntityAvatar(typeKey, id);
+  if (!avatar) return Promise.resolve(null);
+  const cacheKey = typeKey + ':' + id;
+  if (_graphAvatarCache[cacheKey]) return Promise.resolve(_graphAvatarCache[cacheKey]);
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => { _graphAvatarCache[cacheKey] = img; resolve(img); };
+    img.onerror = () => resolve(null);
+    img.src = avatar;
+  });
+}
+
+async function drawRelationsGraph() {
   const canvas = $('#relations-canvas');
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const w = canvas.width, h = canvas.height;
+  const vp = _getGraphViewport();
+
   ctx.clearRect(0,0,w,h);
-  const chars = state.data.characters||[];
-  const rels = state.data.characterRelations||[];
-  if (chars.length===0) { ctx.fillStyle='#777169'; ctx.font='14px "Microsoft YaHei",sans-serif'; ctx.textAlign='center'; ctx.fillText('请先添加角色',w/2,h/2); return; }
-  const positions = {};
-  const cx=w/2, cy=h/2, r=Math.min(w,h)/2-40;
-  chars.forEach((c,i)=>{ const angle=(Math.PI*2/chars.length)*i-Math.PI/2; positions[c.id]={x:cx+r*Math.cos(angle),y:cy+r*Math.sin(angle),name:c.name}; });
-  rels.forEach(r=>{ const src=positions[r.sourceId],tgt=positions[r.targetId]; if (!src||!tgt) return; ctx.beginPath(); ctx.moveTo(src.x,src.y); ctx.lineTo(tgt.x,tgt.y); ctx.strokeStyle='#d69e2e'; ctx.lineWidth=1.5; ctx.globalAlpha=0.5; ctx.stroke(); ctx.globalAlpha=1; const mx=(src.x+tgt.x)/2,my=(src.y+tgt.y)/2; ctx.fillStyle='#d69e2e'; ctx.font='10px "Microsoft YaHei",sans-serif'; ctx.textAlign='center'; ctx.fillText(r.type||'关系',mx,my-6); });
-  chars.forEach(c=>{ const pos=positions[c.id]; if (!pos) return; ctx.beginPath(); ctx.arc(pos.x,pos.y,18,0,Math.PI*2); ctx.fillStyle='#ffffff'; ctx.fill(); ctx.strokeStyle='#000000'; ctx.lineWidth=2; ctx.stroke(); ctx.fillStyle='#000000'; ctx.font='12px "Microsoft YaHei",sans-serif'; ctx.textAlign='center'; ctx.fillText(c.name.slice(0,3),pos.x,pos.y+4); });
+  ctx.fillStyle = '#f7f6f3'; ctx.fillRect(0,0,w,h);
+
+  ctx.save();
+  ctx.translate(vp.panX, vp.panY);
+  ctx.scale(vp.zoom, vp.zoom);
+
+  const selectedSubjects = _getSelectedGraphSubjects();
+  const allEntities = _getAllGraphEntities();
+  const entities = selectedSubjects.length > 0
+    ? selectedSubjects.map(sid => { const [tk,id] = sid.split(':'); return allEntities.find(e=>e.id===id && e.typeKey===tk); }).filter(Boolean)
+    : allEntities;
+  if (entities.length === 0) {
+    ctx.restore();
+    ctx.fillStyle='#777169'; ctx.font='14px "Microsoft YaHei",sans-serif'; ctx.textAlign='center'; ctx.fillText('请勾选主体或添加词条',w/2,h/2);
+    return;
+  }
+  const idList = entities.map(e=>e.id);
+  const allConns = _collectAllConnections(idList);
+  const edges = _buildEdgeMap(allConns);
+  const positions = _getGraphPositions();
+  const cx=w/2, cy=h/2, radius=Math.min(w,h)/2-50;
+  const typeColors = {character:'#3b82f6',faction:'#ef4444',location:'#22c55e',item:'#f59e0b',event:'#8b5cf6'};
+  const edgeColors = {
+    'character|faction':'#ef4444', 'character|location':'#22c55e', 'character|item':'#f59e0b',
+    'character|event':'#8b5cf6', 'faction|location':'#a855f7', 'faction|faction':'#dc2626',
+    'character|character':'#3b82f6', 'location|event':'#06b6d4', 'item|location':'#84cc16',
+    'faction|event':'#f97316', 'item|event':'#eab308'
+  };
+  const currentIds = new Set(entities.map(e=>e.id));
+  Object.keys(positions).forEach(id => { if (!currentIds.has(id)) delete positions[id]; });
+  entities.forEach((e,i) => {
+    if (!positions[e.id]) {
+      const angle = (Math.PI*2/entities.length)*i - Math.PI/2;
+      positions[e.id] = { x:cx+radius*Math.cos(angle), y:cy+radius*Math.sin(angle) };
+    }
+  });
+  edges.forEach(edge => {
+    const posA = positions[edge.a], posB = positions[edge.b];
+    if (!posA || !posB) return;
+    const typeKey = [edge.aType, edge.bType].sort().join('|');
+    const color = edgeColors[typeKey] || '#d69e2e';
+    const hasA2B = edge.aToB && edge.aToB.trim();
+    const hasB2A = edge.bToA && edge.bToA.trim();
+    if (hasA2B && hasB2A) {
+      if (edge.aToB.trim() === edge.bToA.trim()) {
+        _drawLine(ctx, posA.x, posA.y, posB.x, posB.y, color, edge.aToB.trim());
+      } else {
+        _drawArrow(ctx, posA.x, posA.y, posB.x, posB.y, color, edge.aToB.trim(), 8);
+        _drawArrow(ctx, posB.x, posB.y, posA.x, posA.y, color, edge.bToA.trim(), 8);
+      }
+    } else if (hasA2B) {
+      _drawArrow(ctx, posA.x, posA.y, posB.x, posB.y, color, edge.aToB.trim(), 0);
+    } else if (hasB2A) {
+      _drawArrow(ctx, posB.x, posB.y, posA.x, posA.y, color, edge.bToA.trim(), 0);
+    } else {
+      _drawLine(ctx, posA.x, posA.y, posB.x, posB.y, color, '');
+    }
+  });
+  const avatarPromises = entities.map(e => _loadAvatarForGraph(e.typeKey, e.id));
+  const avatarImages = await Promise.all(avatarPromises);
+  entities.forEach((e, idx) => {
+    const pos = positions[e.id]; if (!pos) return;
+    const color = typeColors[e.typeKey] || '#000000';
+    const avatarImg = avatarImages[idx];
+    ctx.save();
+    ctx.beginPath(); ctx.arc(pos.x, pos.y, 20, 0, Math.PI*2);
+    ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.clip();
+    if (avatarImg) {
+      const size = 40;
+      const aspect = avatarImg.naturalWidth / avatarImg.naturalHeight;
+      let dw, dh, dx, dy;
+      if (aspect > 1) { dh = size; dw = size * aspect; dx = pos.x - dw/2; dy = pos.y - dh/2; }
+      else { dw = size; dh = size / aspect; dx = pos.x - dw/2; dy = pos.y - dh/2; }
+      ctx.drawImage(avatarImg, dx, dy, dw, dh);
+    } else {
+      ctx.fillStyle = color; ctx.font = 'bold 11px "Microsoft YaHei",sans-serif'; ctx.textAlign = 'center';
+      ctx.fillText(e.icon||'●', pos.x, pos.y+4);
+    }
+    ctx.restore();
+    ctx.beginPath(); ctx.arc(pos.x, pos.y, 20, 0, Math.PI*2);
+    ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.fillStyle = '#1c1917'; ctx.font = '11px "Microsoft YaHei",sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(e.name, pos.x, pos.y+34);
+  });
+  ctx.restore();
+
+  const legend = _getGraphEntityTypes().filter(t => entities.some(e=>e.typeKey===t.key));
+  if (legend.length > 1) {
+    const legendH = legend.length * 18 + 8;
+    ctx.fillStyle = 'rgba(247,246,243,0.85)';
+    ctx.fillRect(4, 4, 90, legendH);
+    ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(4, 4, 90, legendH);
+    legend.forEach((t,i) => {
+      const lx = 12, ly = 16 + i*18;
+      ctx.fillStyle = typeColors[t.key] || '#000000';
+      ctx.fillRect(lx, ly-8, 10, 10);
+      ctx.fillStyle = '#777169'; ctx.font = '11px "Microsoft YaHei",sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText(t.icon+' '+t.label, lx+14, ly);
+    });
+  }
 }
 
 async function addRelation() {
   const chars = state.data.characters||[];
-  if (chars.length < 2) { alert('请先添加至少两个角色！'); return; }
+  if (chars.length < 2) { showToast('请先添加至少两个角色！'); return; }
   const modal = $('#modal-box');
   const overlay = $('#modal-overlay');
   modal.innerHTML = `
@@ -132,7 +610,6 @@ async function addRelation() {
       <button class="btn btn-primary" id="rel-ok">确定</button>
     </div>`;
   overlay.classList.remove('hidden');
-  const done = (val) => { closeModal(); resolve(val); };
   return new Promise((resolve) => {
     const finish = (val) => { closeModal(); resolve(val); };
     $('#rel-ok').onclick = () => {
@@ -140,8 +617,8 @@ async function addRelation() {
       const targetId = $('#rel-target').value;
       const type = $('#rel-type').value;
       const desc = $('#rel-desc').value;
-      if (!type || !type.trim()) { alert('请填写关系类型'); return; }
-      if (sourceId === targetId) { alert('源角色和目标角色不能相同'); return; }
+      if (!type || !type.trim()) { showToast('请填写关系类型'); return; }
+      if (sourceId === targetId) { showToast('源角色和目标角色不能相同'); return; }
       state.data.characterRelations.push({ id: uid(), sourceId, targetId, type: type.trim(), description: desc||'' });
       autoSave(); renderTabContent();
       finish(true);

@@ -1,5 +1,133 @@
 # 世界生成器 - 开发日志
 
+## v1.7.0 (2026-08-14 下午)
+
+### 关系图表优化
+
+- **重置布局按钮**：新增 `resetGraphLayout()` 函数，一键重置所有节点位置为圆形布局
+- **图表缩放**：从 CSS `transform:scale` 改为 Canvas 视口缩放（`ctx.translate` + `ctx.scale`），新增 `_getGraphViewport()` 管理视口状态（zoom、panX、panY）
+- **滚轮缩放**：以鼠标位置为中心点缩放，缩放范围 15%~400%
+- **画布平移**：左键点击空白处或右键/中键拖拽画布平移
+- **节点拖拽**：左键点击节点可拖拽到任意位置，缩放后坐标正确转换（`_screenToWorld()`）
+- **头像显示**：节点内显示角色头像（`_loadAvatarForGraph()`），圆形裁剪 + 边框，无头像时显示图标
+- **图例固定左上角**：图例绘制移到 `ctx.restore()` 之后，不受视口变换影响，添加半透明背景
+
+### 资源库图片查看器优化
+
+- **拖拽移动**：放大后可拖拽图片移动查看不同区域，支持鼠标拖拽平移（`_imageViewerPanX/PanY`）
+- **滚轮缩放**：在图片查看器内支持滚轮缩放
+- **按钮缩放/重置**：缩放和重置按钮自动归零平移
+- **居中显示**：`transform-origin` 改为 `center center`，配合 `translate()` 实现居中+平移
+
+### 资源库功能增强
+
+- **初始无选中状态**：资源列表初始 `selectedId = null`，所有项均为未选择
+- **资源 CRUD**：新建资源（`addResource()`，弹窗表单含标题/类别/备注/图片/自定义属性）、编辑资源（`editResource()`，支持更换图片/移除图片）、删除资源（`deleteResource()`，确认后删除并清除选中状态）
+- **资源关联词条**：资源详情显示关联词条列表（`_renderResourceLinkedEntries()`），关系图类资源自动从 `graphSubjects` 提取关联实体，点击词条可弹出预览卡片
+- **关系图类别常驻**：`SYSTEM_LOCKED_CATEGORIES` 定义系统常驻类别（关系图、头像），属性定义中锁定不可编辑/删除（`systemLocked: true`，🔒 图标标识）
+- **头像自动保存**：角色头像上传时自动保存到资源库，命名格式"角色名头像"（`autoSaveAvatarToResources()`），已有同名资源则更新图片
+- **自定义 Emoji 库**：新增 Emoji 库管理（`_getEmojiLib()`、`renderEmojiLibSection()`、`addEmojiToLib()`、`removeEmojiFromLib()`），支持自主添加/删除 Emoji，每个 Emoji 可设名称
+- **Emoji 选择器集成**：资源标题输入框（`getEmojiPickerHtml()`）、物品图标选择器、百科图标选择器均集成自定义 Emoji 库，点击直接填入
+- **资源保存到本地**：`saveResourceToLocal()` 支持图片资源下载为 PNG/JPG，非图片资源导出为 JSON
+- **类别选择器**：新建/编辑资源时使用 `renderCategorySelect()` 下拉选择类别
+- **自定义属性**：资源支持自定义属性字段（`renderCustomPropField` / `renderCustomPropWikiHtml`）
+- **搜索筛选**：资源列表支持搜索框按标题/类别/备注筛选
+
+### 世界探索入场动画
+
+- **卡片入场**：`.explorer-card` 加入动画系统，Tab 切换时卡片从下方滑入 + 淡入，交错延迟 0.04s
+- **头部入场**：搜索区域添加 `card` 类，与其他 Tab 一致有入场效果
+- **详情页入场**：`showExplorerDetail()` 加载详情后触发完整入场动画（wiki-page 滑入、wiki-title 逐字动画、wiki-header 滑入、wiki-section 交错滑入）
+- **搜索/换一批动画**：搜索结果、换一批推荐、返回列表时均有交错入场动画
+- **动画系统扩展**：`animation.js` 新增 `.explorer-card` 和 `.wiki-page` 选择器支持
+
+### Bug 修复
+
+- 修复关系图表 Tab 切换失败（背包物品 `backpackItems` 为对象结构，代码错误按数组处理）
+- 修复拖拽功能在缩放后坐标偏移（未考虑缩放比例对鼠标坐标的影响）
+
+---
+
+## v1.6.0 (2026-08-14)
+
+### "现实幻想"→"世界百科"模块重构
+
+- **模块重命名**：导航 Tab "现实幻想"→"世界百科"（📚），对应模块 encyclopedia.js 全面重构
+- **三栏百科布局**：左侧大类列表 → 中间子类列表 → 右侧词条详情/编辑，三栏各自独立滚动
+- **默认百科树**：内置 13 个大类（时代背景、重大事件、地理疆域、气候环境、政治制度、军事、经济、社会结构、科技生产力、文化思想、宗教信仰、民族族群、语言称谓），每个大类下预设子类
+- **大类/子类管理**：支持新建、编辑、删除大类和子类，自定义图标选择器
+- **词条 CRUD**：每个子类下可创建词条，支持标题、图标、描述、自定义属性编辑
+- **模板快速添加**：`openAddTemplateCategoryModal()` 提供预设模板一键添加大类和子类，已有子类自动跳过
+- **百科子类绑定**：`bindEncyclopediaCategory()` 将百科子类绑定到实体类型（角色、势力、地点等），绑定后该类型实体自动归入对应子类下管理
+- **导航跳转**：`navigateToEncyclopediaItem()` / `navigateToEncyclopediaSub()` 支持从其他模块跳转到百科词条或子类
+- **列表固定撑满页面**：`.encyclopedia-layout` 使用 `height: calc(100vh - 120px)`，三面板各自 `overflow-y: auto` 实现内部滚动
+
+### 全局 alert → showToast 替换
+
+- **问题**：`alert()` 阻塞导致焦点丢失，添加模板/同名检测后无法继续输入
+- **修复**：全量替换 renderer 目录下所有 `alert()` 为非阻塞 `showToast()`
+- **涉及文件**：encyclopedia.js、items.js、characters.js、factions.js、locations.js、races.js、narrative-events.js、relations.js、glossary.js、navigation.js、properties.js、constitution.js
+
+### 世界系统模块重命名 & 图标更换
+
+- **问题**："新建背包"命名出戏，🎒图标不符合系统概念
+- **修复**：
+  - 按钮文本"新建背包"→"新建系统"
+  - 默认图标 🎒→🎲（骰子）
+  - 全局"背包"→"系统"文字替换（items.js、properties.js、narrative-events.js、characters.js、overview.js）
+  - emoji 选择器列表中的 🎒 保留（作为可选项）
+
+### 编辑状态下物品添加按钮禁用
+
+- **问题**：编辑物品时"+ 物品"按钮仍可操作，导致误操作
+- **修复**：encyclopedia.js、items.js 中添加编辑状态判断，编辑时按钮 disabled + 半透明样式
+
+### 世界规则模块（constitution.js）优化
+
+- 列表固定撑满页面，内部滚动（`max-height: calc(100vh - 240px); overflow-y: auto`）
+- 支持自定义字段（引用 `renderCustomPropField`）
+- 新建条目后自动聚焦标题输入框
+
+### 自定义字段支持百科子类绑定
+
+- properties.js 引用型字段新增 `encyclopediaSub`（📚 百科子类）选项
+- glossary.js `collectGlossary` 新增 `encyclopediaSub` 类型
+- constitution.js 新增 `constitution`（📜 世界规则）作用域
+
+### 大纲章节拖拽排序 & 插入
+
+- **问题**：章节无法在卷内拖拽排序，也无法在指定位置插入
+- **修复**：
+  - 编辑模式下章节标题前新增 `⠿` 拖拽手柄（`ol-ch-drag`）
+  - 每个章节新增 `⬆` 插入按钮
+  - `setupOutline()` 扩展拖拽逻辑，区分卷拖拽（`volume`）和章节拖拽（`chapter`）
+  - 新增 `insertOutlineChapter(vi, ci)` 函数
+
+### 仪表盘数据统计优化
+
+- **百科子类替代大类**：统计区从显示百科大类改为显示小类（子类），每个子类显示其下词条数
+- **空项隐藏**：百科子类词条数为 0 时不显示，世界系统背包物品数为 0 时不显示
+- **移除时间线统计**：删除"时间线"和"事件"两个重复统计项
+
+### "世界宪法"→"世界探索"模块重构
+
+- **模块重命名**：导航 Tab "世界宪法"（📜）→"世界探索"（🔭），constitution.js 全面重写为 Wiki 浏览器
+- **全局搜索**：顶部搜索框可检索所有角色、地点、势力、种族、物品、事件、百科词条
+- **随机推荐卡片**：从所有词条中随机抽取 12 个以卡片形式展示，点击直接查看详情
+- **换一批按钮**：`refreshExplorerRecommendations()` 随机刷新推荐
+- **专属详情页**：点击卡片在页面内直接展示 wiki 详情，不跳转对应 tab，纯只读浏览
+- **浏览历史**：`_explorerHistory` 支持返回上一级
+- **7 种实体详情**：角色、地点、势力、种族、物品、事件、百科词条各有专属渲染函数
+
+### 地点管理布局优化
+
+- **删除标签树**：移除左侧标签树面板（`renderTagTree`、`addTag`、`deleteTag`、`renderTagCheckboxes` 等函数）
+- **左列表右详情**：改为与其他 tab 一致的 `char-layout` 布局（左列表+右详情）
+- **样式清理**：移除 `.location-layout`、`.tag-tree-panel`、`.tag-tree-*` 等旧 CSS
+- **AI 生成修复**：`aiGenLocation` 不再依赖 `#ai-location-result` 元素
+
+---
+
 ## v1.5.0 (2026-08-13)
 
 ### 搜索框系统

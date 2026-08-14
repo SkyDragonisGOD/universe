@@ -75,6 +75,14 @@ function ensurePropertyDefs() {
       needSave = true;
     }
   });
+  Object.keys(SYSTEM_LOCKED_CATEGORIES || {}).forEach(type => {
+    (SYSTEM_LOCKED_CATEGORIES[type] || []).forEach(name => {
+      if (!state.data.categories.find(c => c.type === type && c.name === name)) {
+        state.data.categories.push({ id: uid(), type, name, description: '系统常驻', systemLocked: true });
+        needSave = true;
+      }
+    });
+  });
   (state.data.characters || []).forEach(c => {
     if (typeof c.race === 'string') {
       c.race = c.race && c.race !== '未知' ? [c.race] : [];
@@ -147,6 +155,11 @@ function openPropOptionDetail(title, name, description, type, onEdit) {
 }
 
 function openCategoryDetail(type, name) {
+  const boundSubId = getEncyclopediaBinding(type);
+  if (boundSubId) {
+    navigateToEncyclopediaItem(type, name);
+    return;
+  }
   const cat = (state.data.categories||[]).find(c => c.type === type && c.name === name);
   const overlay = $('#modal-overlay');
   const modal = $('#modal-box');

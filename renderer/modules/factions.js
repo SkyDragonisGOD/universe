@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // 世界生成器 — 势力
 // 依赖: core/state.js, core/utils.js, core/modal.js, core/glossary.js
 // ============================================================
@@ -28,7 +28,7 @@ function renderFactionList() {
   ];
   const filtered = factions.filter(f => matchRelFilter(f, 'factionRelFilter', factionRelMatchDefs)).filter(f => matchSearch(f.name, 'factionSearch'));
   if (filtered.length===0) return '<div class="empty-state"><div class="icon">🏰</div><p>暂无势力</p></div>';
-  return filtered.map(f=>`<div class="faction-list-item${state.selectedFactionId===f.id?' selected':''}" data-faction-id="${f.id}"><span>${esc(f.name)}</span><span class="tag" style="background:${f.color||'#888'}">${esc(f.type||'')}</span></div>`).join('');
+  return filtered.map(f=>`<div class="faction-list-item${state.selectedFactionId===f.id?' selected':''}" data-faction-id="${f.id}"><span class="drag-handle" style="cursor:grab;font-size:10px;color:var(--muted);user-select:none">⠿</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span><span class="tag" style="background:${f.color||'#888'}">${esc(f.type||'')}</span></div>`).join('');
 }
 
 function renderFactionDetail() {
@@ -183,12 +183,19 @@ function cancelFactionEdit() {
 function setupFactions() {
   registerSearchTarget('factionSearch','faction-list',renderFactionList);
   const list = $('#faction-list');
-  if (list) { list.querySelectorAll('.faction-list-item').forEach(item=>{item.onclick=()=>{state.selectedFactionId=item.dataset.factionId;state.editingFaction=false;state._forceAnimate=true;state._animateScope='detail';renderTabContent();};});}
+  if (list) { list.querySelectorAll('.faction-list-item').forEach(item=>{item.onclick=(ev)=>{if(ev.target.closest('.drag-handle'))return;state.selectedFactionId=item.dataset.factionId;state.editingFaction=false;state._forceAnimate=true;state._animateScope='detail';renderTabContent();};});}
+  setupDragSort({
+    containerId: 'faction-list',
+    itemSelector: '.faction-list-item',
+    handleSelector: '.drag-handle',
+    getArray: () => state.data.factions,
+    setArray: (arr) => { state.data.factions = arr; }
+  });
 }
 
 function addFaction() { ensureData('factions',[]); const f={id:uid(),name:'新势力',type:'',color:'#888888',description:'',goals:'',headquarters:'',members:[],rivals:[],allies:[],relatedEvents:[],relatedVolumes:[],customProps:{}}; state.data.factions.push(f); state.selectedFactionId=f.id; state.editingFaction=true; _factionIsNew=true; autoSave(); state._forceAnimate=true; state._animateScope='detail'; renderTabContent(); }
 async function aiGenFaction() { const el=document.createElement('div'); el.id='ai-faction-result'; const panel=$('#faction-detail'); if (panel) panel.prepend(el); const text=await runAI(window.api.aiGenerateFaction(state.data),el); if (text) { const json=tryParseJSON(text); if (json&&json.name) { const f={id:uid(),name:json.name,type:json.type||'',color:json.color||'#'+Math.floor(Math.random()*16777215).toString(16),description:json.description||'',goals:json.goals||'',headquarters:json.headquarters||'',members:json.members||[],rivals:[],allies:[],relatedEvents:[],customProps:{}}; state.data.factions.push(f); state.selectedFactionId=f.id; autoSave(); renderTabContent(); } } }
-function updateFaction(key,value) { const f=(state.data.factions||[]).find(fa=>fa.id===state.selectedFactionId); if (f) { if (key==='name'&&checkDuplicate(state.data.factions,value,f.id)){alert('已存在同名势力！');renderTabContent();return;} f[key]=value; autoSave(); } }
+function updateFaction(key,value) { const f=(state.data.factions||[]).find(fa=>fa.id===state.selectedFactionId); if (f) { if (key==='name'&&checkDuplicate(state.data.factions,value,f.id)){showToast('已存在同名势力！');renderTabContent();return;} f[key]=value; autoSave(); } }
 function setFactionCustomProp(propId, value) { const f=(state.data.factions||[]).find(fa=>fa.id===state.selectedFactionId); if (!f) return; if (!f.customProps) f.customProps = {}; f.customProps['cp_'+propId] = value; autoSave(); }
 function removeFactionHQ(locId) { const f=(state.data.factions||[]).find(fa=>fa.id===state.selectedFactionId); if (!f) return; const oldArr=Array.isArray(f.headquarters)?f.headquarters:(f.headquarters?[f.headquarters]:[]); const oldIds=_linkIds(oldArr); f.headquarters=_removeLink(oldArr,locId); syncLink('faction',f.id,'headquarters',_linkIds(f.headquarters),'',oldIds); autoSave(); if (state.editingFaction) { const d=$('#faction-detail'); if(d) d.innerHTML=renderFactionEditForm(f); } }
 function removeFactionMember(mid) { const f=(state.data.factions||[]).find(fa=>fa.id===state.selectedFactionId); if (!f) return; const oldIds=_linkIds(f.members); f.members=_removeLink(f.members,mid); syncLink('faction',f.id,'members',_linkIds(f.members),'',oldIds); autoSave(); if (state.editingFaction) { const d=$('#faction-detail'); if(d) d.innerHTML=renderFactionEditForm(f); } }
@@ -212,7 +219,7 @@ async function openFactionMemberModal() {
   const f=(state.data.factions||[]).find(fa=>fa.id===state.selectedFactionId);
   if (!f) return;
   const characters = collectGlossary('character');
-  if (characters.length===0){alert('暂无角色');return;}
+  if (characters.length===0){showToast('暂无角色');return;}
   const result = await customLinkModal('选择关联角色', characters, f.members||[], '简述关系');
   if (result===null) return;
   const oldIds=_linkIds(f.members);
@@ -226,7 +233,7 @@ async function openFactionRivalModal() {
   const f=(state.data.factions||[]).find(fa=>fa.id===state.selectedFactionId);
   if (!f) return;
   const otherFactions = (state.data.factions||[]).filter(fa=>fa.id!==f.id).map(fa=>({id:fa.id,name:fa.name}));
-  if (otherFactions.length===0){alert('暂无其他势力');return;}
+  if (otherFactions.length===0){showToast('暂无其他势力');return;}
   const result = await customLinkModal('选择敌对势力', otherFactions, f.rivals||[], '简述关系');
   if (result===null) return;
   const oldIds=_linkIds(f.rivals);
@@ -240,7 +247,7 @@ async function openFactionAllyModal() {
   const f=(state.data.factions||[]).find(fa=>fa.id===state.selectedFactionId);
   if (!f) return;
   const otherFactions = (state.data.factions||[]).filter(fa=>fa.id!==f.id).map(fa=>({id:fa.id,name:fa.name}));
-  if (otherFactions.length===0){alert('暂无其他势力');return;}
+  if (otherFactions.length===0){showToast('暂无其他势力');return;}
   const result = await customLinkModal('选择盟友势力', otherFactions, f.allies||[], '简述关系');
   if (result===null) return;
   const oldIds=_linkIds(f.allies);
@@ -256,7 +263,7 @@ async function openFactionEventModal() {
   const f=(state.data.factions||[]).find(fa=>fa.id===state.selectedFactionId);
   if (!f) return;
   const events = collectGlossary('event');
-  if (events.length===0){alert('暂无事件');return;}
+  if (events.length===0){showToast('暂无事件');return;}
   const result = await customLinkModal('选择关联事件', events, f.relatedEvents||[], '简述关系');
   if (result===null) return;
   const oldIds=_linkIds(f.relatedEvents);
@@ -270,7 +277,7 @@ async function openFactionVolumeModal() {
   const f=(state.data.factions||[]).find(fa=>fa.id===state.selectedFactionId);
   if (!f) return;
   const outline=state.data.outline||[];
-  if(outline.length===0){alert('暂无卷');return;}
+  if(outline.length===0){showToast('暂无卷');return;}
   const volItems=outline.map((v,i)=>({id:String(i),name:v.title||('第'+(i+1)+'卷')}));
   const existingIds=_normLinks(f.relatedVolumes||[]).map(l=>l.id);
   const result=await customSelectModal('📑 选择关联卷',volItems,existingIds);

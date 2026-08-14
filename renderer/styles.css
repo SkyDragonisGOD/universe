@@ -76,7 +76,7 @@ input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-sele
 /* Cards */
 .card { background: var(--white); padding: 24px; margin-bottom: 20px; border-radius: var(--radius-card); box-shadow: var(--shadow-card); will-change: transform, opacity; }
 .card h3 { font-family: var(--font-display); font-size: 20px; font-weight: 300; margin-bottom: 16px; color: var(--black); letter-spacing: -0.2px; }
-.wiki-section, .dim-group, .wiki-header, .empty-state, .tag-tree-panel, .location-panel, .char-list-panel, .char-detail-panel, .faction-list-panel, .faction-detail-panel, .item-list-panel, .item-detail-panel, .race-list-panel, .race-detail-panel { will-change: transform, opacity; }
+.wiki-section, .dim-group, .wiki-header, .empty-state, .location-panel, .char-list-panel, .char-detail-panel, .faction-list-panel, .faction-detail-panel, .item-list-panel, .item-detail-panel, .race-list-panel, .race-detail-panel { will-change: transform, opacity; }
 .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
 .card-header h3 { margin-bottom: 0; }
 
@@ -88,7 +88,7 @@ input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-sele
 .form-row { display: flex; gap: 12px; }
 .form-row > * { flex: 1; }
 
-/* ============ REALISM & FANTASY ============ */
+/* ============ ENCYCLOPEDIA (legacy section) ============ */
 .dimension-list { display: flex; flex-direction: column; gap: 12px; }
 .dimension-item { background: var(--white); padding: 20px; border-radius: var(--radius-card); box-shadow: var(--shadow-card); transition: var(--transition); }
 .dimension-item:hover { box-shadow: var(--shadow-card-hover); }
@@ -109,26 +109,7 @@ input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-sele
 .custom-rule input { flex: 1; padding: 8px 12px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-xs); color: var(--black); font-size: 14px; font-family: var(--font-body); font-weight: 400; letter-spacing: 0.14px; }
 
 /* ============ LOCATION TAG SYSTEM ============ */
-.location-layout { display: grid; grid-template-columns: 260px 1fr; gap: 16px; height: calc(100vh - 180px); }
-.tag-tree-panel { background: var(--white); padding: 20px; overflow-y: auto; border-radius: var(--radius-card); box-shadow: var(--shadow-card); }
-.tag-tree-panel h3 { font-family: var(--font-display); font-size: 18px; font-weight: 300; color: var(--black); margin-bottom: 14px; }
-.tag-tree { padding-left: 0; }
-.tag-tree-node { margin-bottom: 2px; }
-.tag-tree-row { display: flex; align-items: center; gap: 6px; padding: 5px 8px; border-radius: var(--radius-xs); cursor: pointer; font-size: 14px; font-weight: 400; letter-spacing: 0.14px; transition: background var(--transition); }
-.tag-tree-row:hover { background: var(--light-gray); }
-.tag-tree-row.selected { background: var(--black); color: var(--white); }
-.tag-tree-row.leaf { cursor: pointer; }
-.tag-tree-row:not(.leaf) { cursor: default; }
-.tag-tree-row:not(.leaf) .tag-count { opacity: 0.5; }
-.tag-tree-children { padding-left: 20px; display: none; }
-.tag-tree-children.expanded { display: block; }
-.tag-toggle { width: 16px; font-size: 10px; text-align: center; cursor: pointer; color: var(--warm-gray); flex-shrink: 0; }
-.tag-color { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
-.tag-count { font-size: 12px; font-weight: 500; color: var(--warm-gray); margin-left: auto; }
 .location-panel { display: flex; flex-direction: column; overflow: hidden; }
-.location-panel > #location-list-wrap { flex: 1; overflow-y: auto; min-height: 0; }
-.location-panel > #location-detail { flex-shrink: 0; display: flex; flex-direction: column; max-height: 50%; }
-.location-panel > #location-detail > .detail-scroll-area { flex: 1; overflow-y: auto; }
 .location-panel > #location-detail > .detail-sticky-bar { flex-shrink: 0; }
 .location-card { background: var(--white); padding: 18px; margin-bottom: 12px; border-radius: var(--radius-card); box-shadow: var(--shadow-card); cursor: pointer; transition: var(--transition); }
 .location-card:hover { box-shadow: var(--shadow-card-hover); }
@@ -207,9 +188,9 @@ input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-sele
 .flex-between h3 { white-space: nowrap; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .flex-gap { display: flex; gap: 6px; align-items: center; flex-shrink: 0; flex-wrap: nowrap; }
 .flex-gap .btn { white-space: nowrap; }
-:is(.char-list-panel,.faction-list-panel,.relation-list-panel,.item-list-panel,.tag-tree-panel,.location-panel) .flex-between h3 { font-size: 15px; margin-bottom: 0; }
-:is(.char-list-panel,.faction-list-panel,.relation-list-panel,.item-list-panel,.tag-tree-panel,.location-panel) .flex-between .btn-sm { padding: 4px 10px; font-size: 12px; }
-:is(.char-list-panel,.faction-list-panel,.relation-list-panel,.item-list-panel,.tag-tree-panel,.location-panel) .flex-between .btn-ai { padding: 4px 10px; font-size: 12px; }
+:is(.char-list-panel,.faction-list-panel,.relation-list-panel,.item-list-panel,.location-panel) .flex-between h3 { font-size: 15px; margin-bottom: 0; }
+:is(.char-list-panel,.faction-list-panel,.relation-list-panel,.item-list-panel,.location-panel) .flex-between .btn-sm { padding: 4px 10px; font-size: 12px; }
+:is(.char-list-panel,.faction-list-panel,.relation-list-panel,.item-list-panel,.location-panel) .flex-between .btn-ai { padding: 4px 10px; font-size: 12px; }
 .mt-8 { margin-top: 8px; }
 .mt-16 { margin-top: 16px; }
 .mb-8 { margin-bottom: 8px; }
@@ -416,25 +397,17 @@ input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-sele
 /* ============ RELATIONS CANVAS ============ */
 .relations-canvas-container { background: var(--white); border-radius: var(--radius-sm); overflow: hidden; box-shadow: var(--shadow-card); margin: 12px 0; }
 .relations-canvas-container canvas { width: 100%; height: auto; display: block; }
-/* ============ REALISM & FANTASY ============ */
-.realism-layout { display: grid; grid-template-columns: 180px 180px 1fr; gap: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; min-height: 480px; background: var(--white); }
-.realism-l1-nav { background: var(--near-white); border-right: 1px solid var(--border); overflow-y: auto; }
-.realism-l2-nav { background: var(--white); border-right: 1px solid var(--border); overflow-y: auto; }
-.realism-editor { padding: 20px; overflow-y: auto; }
-.realism-nav-header { font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; color: var(--warm-gray); padding: 12px 12px 6px; }
-.realism-nav-item { display: flex; align-items: center; gap: 6px; padding: 7px 12px; font-size: 13px; cursor: pointer; transition: var(--transition); letter-spacing: 0.14px; color: var(--dark-gray); border-left: 2px solid transparent; }
-.realism-nav-item:hover { background: var(--light-gray); color: var(--black); }
-.realism-nav-item.active { background: var(--light-gray); color: var(--black); border-left-color: var(--black); font-weight: 500; }
-.realism-nav-count { margin-left: auto; font-size: 11px; color: var(--warm-gray); background: var(--white); padding: 1px 6px; border-radius: var(--radius-pill); }
-.realism-nav-footer { padding: 8px; border-top: 1px solid var(--border-subtle); }
-.realism-dot-filled { color: #38a169; font-size: 10px; margin-left: 4px; }
-.realism-hints { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 16px; }
-.realism-hint-tag { font-size: 11px; padding: 2px 8px; border-radius: var(--radius-pill); background: var(--near-white); color: var(--warm-gray); border: 1px solid var(--border); }
-.realism-priority-row { display: flex; gap: 8px; }
-.priority-historical { background: #fef3c7; color: #92400e; border: 1px solid #f59e0b; }
-.priority-fictional { background: #ede9fe; color: #5b21b6; border: 1px solid #8b5cf6; }
-.priority-balanced { background: var(--light-gray); color: var(--black); border: 1px solid var(--border); }
-.realism-preview { background: var(--light-gray); padding: 16px; border-radius: var(--radius-sm); font-size: 12px; font-family: var(--font-mono); white-space: pre-wrap; max-height: 400px; overflow-y: auto; color: var(--dark-gray); line-height: 1.6; }
+/* ============ ENCYCLOPEDIA ============ */
+.encyclopedia-layout { display: grid; grid-template-columns: 220px 220px 1fr; gap: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; height: calc(100vh - 120px); background: var(--white); }
+.encyclopedia-cat-panel { background: var(--near-white); border-right: 1px solid var(--border); overflow-y: auto; padding: 12px; }
+.encyclopedia-sub-panel { background: var(--white); border-right: 1px solid var(--border); overflow-y: auto; padding: 12px; }
+.encyclopedia-item-panel { padding: 0; overflow-y: auto; }
+.encyclopedia-cat-item { display: flex; align-items: center; gap: 6px; padding: 8px 10px; font-size: 13px; cursor: pointer; transition: var(--transition); border-radius: var(--radius-xs); margin-bottom: 2px; color: var(--dark-gray); border-left: 3px solid transparent; }
+.encyclopedia-cat-item:hover { background: var(--light-gray); color: var(--black); }
+.encyclopedia-cat-item.selected { background: var(--light-gray); color: var(--black); font-weight: 600; border-left-color: var(--accent); }
+.encyclopedia-sub-item { display: flex; align-items: center; gap: 6px; padding: 7px 10px; font-size: 13px; cursor: pointer; transition: var(--transition); border-radius: var(--radius-xs); margin-bottom: 2px; color: var(--dark-gray); border-left: 3px solid transparent; }
+.encyclopedia-sub-item:hover { background: var(--light-gray); color: var(--black); }
+.encyclopedia-sub-item.selected { background: var(--light-gray); color: var(--black); font-weight: 600; border-left-color: var(--accent); }
 
 /* ============ WIKI VIEW ============ */
 .wiki-page { max-width: 780px; }
@@ -581,7 +554,6 @@ input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-sele
   .nav-item.box-active { color: var(--dark-gray); }
   .nav-item.box-hover:not(.is-active) { color: var(--dark-gray); }
   .nav-item.is-active { background-color: var(--black); color: var(--white); }
-  .location-layout { grid-template-columns: 1fr; height: auto; }
   .char-layout { grid-template-columns: 1fr; height: auto; }
   .relation-layout { grid-template-columns: 1fr; height: auto; }
   .faction-layout { grid-template-columns: 1fr; height: auto; }
@@ -589,8 +561,8 @@ input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-sele
   .attr-grid { grid-template-columns: repeat(2, 1fr); }
   .grid-2, .grid-3 { grid-template-columns: 1fr; }
   .editor-content { padding: 20px; }
-  .realism-layout { grid-template-columns: 1fr; }
-  .realism-l1-nav, .realism-l2-nav { max-height: 200px; }
+  .encyclopedia-layout { grid-template-columns: 1fr; height: auto; }
+  .encyclopedia-cat-panel, .encyclopedia-sub-panel { max-height: 300px; }
 }
 
 /* ============ TIMELINE VIEW ============ */

@@ -18,20 +18,27 @@ function renderProperties() {
       <h3>🏷️ 类别定义</h3>
       ${Object.entries(CAT_TYPE_LABELS).map(([type, label]) => {
         const typeCats = cats.filter(c => c.type === type);
+        const boundSubId = getEncyclopediaBinding(type);
+        const boundSub = boundSubId ? (state.data.encyclopediaSubCategories || []).find(s => s.id === boundSubId) : null;
         return `<div class="prop-group">
           <div class="prop-group-header">
             <h4>${label}</h4>
-            <button class="btn btn-xs btn-outline" onclick="addPropCategory('${type}')">+ 新增</button>
+            <div class="flex-gap">
+              ${boundSub ? `<span class="wiki-tag skill" style="font-size:11px">🔗 ${esc(boundSub.name)}</span><button class="btn btn-xs btn-outline" onclick="navigateToEncyclopediaSub('${esc(boundSubId)}')">📚 百科</button><button class="btn btn-xs btn-outline" onclick="unbindEncyclopediaCategory('${esc(type)}')" style="color:var(--danger)">解开</button>` : `<button class="btn btn-xs btn-outline" onclick="openBindEncyclopediaModal('${esc(type)}')">🔗 绑定百科</button>`}
+              <button class="btn btn-xs btn-outline" onclick="addPropCategory('${type}')">+ 新增</button>
+            </div>
           </div>
           <div class="prop-list" data-drag-group="cat-${type}">
             ${typeCats.length === 0 ? '<div class="text-xs text-muted" style="padding:8px 0">暂无类别</div>' :
               typeCats.map(c => {
-                const isLocked = c.name === '未知';
+                const isLocked = c.name === '未知' || c.systemLocked;
+                const isBound = !!boundSubId;
+                const descHtml = isBound && !isLocked ? `<button class="btn btn-xs btn-outline" onclick="navigateToEncyclopediaItem('${esc(type)}','${esc(c.name)}')" style="flex:1;min-width:0;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="查看百科">🔗 ${esc(c.description||'查看百科')}</button>` : `<input class="prop-desc-input" value="${esc(c.description||'')}" placeholder="简述（可选）"${isLocked?' readonly':''} ondragstart="event.stopPropagation();return false" data-cat-id="${c.id}" data-field="description" onfocus="this.select()" onblur="savePropCategory('${c.id}','description',this.value)" onkeydown="if(event.key==='Enter')this.blur()">`;
                 return `<div class="prop-item${isLocked?' prop-item-locked':''}" draggable="${!isLocked}" data-drag-id="${c.id}">
                   ${!isLocked?'<span class="prop-drag-handle" title="拖拽排序">⠿</span>':''}
-                  <span class="prop-index" style="cursor:pointer" onclick="openCategoryDetail('${esc(c.type)}','${esc(c.name)}')">${isLocked?'🔒':esc(c.name)}</span>
+                  <span class="prop-index" style="cursor:pointer" onclick="${isBound ? `navigateToEncyclopediaItem('${esc(c.type)}','${esc(c.name)}')` : `openCategoryDetail('${esc(c.type)}','${esc(c.name)}')`}">${isLocked?'🔒':esc(c.name)}</span>
                   <input class="prop-input" value="${esc(c.name)}"${isLocked?' readonly':''} ondragstart="event.stopPropagation();return false" data-cat-id="${c.id}" data-field="name" onfocus="this.select()" onblur="savePropCategory('${c.id}','name',this.value)" onkeydown="if(event.key==='Enter')this.blur()">
-                  <input class="prop-desc-input" value="${esc(c.description||'')}" placeholder="简述（可选）"${isLocked?' readonly':''} ondragstart="event.stopPropagation();return false" data-cat-id="${c.id}" data-field="description" onfocus="this.select()" onblur="savePropCategory('${c.id}','description',this.value)" onkeydown="if(event.key==='Enter')this.blur()">
+                  ${descHtml}
                   ${isLocked?'':`<button class="btn btn-xs btn-outline" onclick="insertPropCategory('${c.id}','${type}')" style="flex-shrink:0;font-size:10px;padding:2px 5px" title="在此处插入">＋</button><button class="btn btn-xs btn-danger" onclick="deletePropCategory('${c.id}')">×</button>`}
                 </div>`;
               }).join('')}
@@ -176,12 +183,19 @@ function renderCustomPropGroups(customProps) {
     return '<div class="text-xs text-muted" style="padding:8px 0">暂无自定义词条，点击下方按钮添加</div>';
   }
   const backpacks = state.data.worldBackpacks || [];
+  const encCats = state.data.encyclopediaCategories || [];
+  const encSubs = state.data.encyclopediaSubCategories || [];
   const bpMap = {};
-  backpacks.forEach(bp => { bpMap['items_' + bp.id] = '🎒 ' + bp.name; });
+  backpacks.forEach(bp => { bpMap['items_' + bp.id] = '🎲 ' + bp.name; });
+  const encMap = {};
+  encSubs.forEach(sub => {
+    const parentCat = encCats.find(c => c.id === sub.parentId);
+    encMap['encyclopedia_' + sub.id] = '📚 ' + (parentCat ? parentCat.name + '/' : '') + sub.name;
+  });
   return customProps.map((prop, pi) => {
-    const scopeLabels = { items: '📦 物品', factions: '🏰 势力', races: '🧬 种族', locations: '📍 地点', characters: '👤 角色', timeline: '⚡ 事件', outline: '📑 大纲', powers: '🔮 力量体系', ...bpMap };
+    const scopeLabels = { items: '📦 物品', factions: '🏰 势力', races: '🧬 种族', locations: '📍 地点', characters: '👤 角色', timeline: '⚡ 事件', outline: '📑 大纲', powers: '🔮 力量体系', resources: '📦 资源', ...bpMap, ...encMap };
     const typeLabels = { select: '选择型（下拉选项）', reference: '引用型（选择已有实体）', text: '文本型（自由输入）' };
-    const refTypeLabels = { faction: '势力', location: '地点', character: '角色', race: '种族', timeline: '事件' };
+    const refTypeLabels = { faction: '势力', location: '地点', character: '角色', race: '种族', timeline: '事件', encyclopediaSub: '百科子类' };
     return `<div class="custom-prop-card">
       <div class="custom-prop-header">
         <div class="custom-prop-title">
@@ -234,6 +248,8 @@ function openCustomPropModal(editIndex) {
   const isEdit = editIndex !== undefined && editIndex !== null && editIndex >= 0;
   const existingProp = isEdit ? (state.data.propertyDefs.customProps || [])[editIndex] : null;
   const backpacks = state.data.worldBackpacks || [];
+  const encCats = state.data.encyclopediaCategories || [];
+  const encSubs = state.data.encyclopediaSubCategories || [];
   const scopeOptions = [
     { id: 'factions', name: '🏰 势力' },
     { id: 'races', name: '🧬 种族' },
@@ -242,10 +258,16 @@ function openCustomPropModal(editIndex) {
     { id: 'timeline', name: '⚡ 事件' },
     { id: 'outline', name: '📑 大纲' },
     { id: 'powers', name: '🔮 力量体系' },
-    ...backpacks.map(bp => ({ id: 'items_' + bp.id, name: '🎒 ' + bp.name }))
+    { id: 'resources', name: '📦 资源' },
+
+    ...backpacks.map(bp => ({ id: 'items_' + bp.id, name: '🎲 ' + bp.name })),
+    ...encSubs.map(sub => {
+      const parentCat = encCats.find(c => c.id === sub.parentId);
+      return { id: 'encyclopedia_' + sub.id, name: '📚 ' + (parentCat ? parentCat.name + '/' : '') + sub.name };
+    })
   ];
   if (backpacks.length === 0) {
-    scopeOptions.push({ id: 'items', name: '📦 物品（无背包时）' });
+    scopeOptions.push({ id: 'items', name: '📦 物品（无系统时）' });
   }
   const defaultScope = backpacks.length > 0 ? ['items_' + backpacks[0].id] : ['items'];
   const initName = existingProp ? existingProp.name : '';
@@ -268,7 +290,8 @@ function openCustomPropModal(editIndex) {
     { id: 'location', name: '📍 地点' },
     { id: 'character', name: '👤 角色' },
     { id: 'race', name: '🧬 种族' },
-    { id: 'timeline', name: '⚡ 事件' }
+    { id: 'timeline', name: '⚡ 事件' },
+    { id: 'encyclopediaSub', name: '📚 百科子类' }
   ];
 
   function renderOptionsList(opts) {
@@ -426,7 +449,7 @@ function openCustomPropModal(editIndex) {
     const multiSelect = modal.querySelector('#cp-multiselect')?.checked || false;
     const placeholder = modal.querySelector('#cp-placeholder')?.value || '';
     const scope = [...modal.querySelectorAll('input[name="cp-scope"]:checked')].map(cb => cb.value);
-    if (scope.length === 0) { alert('请至少选择一个应用模块'); return; }
+    if (scope.length === 0) { showToast('请至少选择一个应用模块'); return; }
 
     if (propType === 'select') {
       modal.querySelectorAll('.cp-opt-name').forEach((input, i) => {
@@ -601,6 +624,10 @@ function removeCustomPropData(prop) {
       const bpId = scope.substring(6);
       const items = (d.items || []).filter(i => i.backpackId === bpId);
       items.forEach(item => { if (item.customProps) delete item.customProps[key]; });
+    } else if (scope.startsWith('encyclopedia_')) {
+      const subId = scope.substring(13);
+      const items = (d.encyclopediaItems || []).filter(i => i.subCategoryId === subId);
+      items.forEach(item => { if (item.customProps) delete item.customProps[key]; });
     } else {
       const list = d[scope] || [];
       list.forEach(item => { if (item.customProps) delete item.customProps[key]; });
@@ -616,6 +643,9 @@ function syncCustomPropOptionRefs(prop, oldVal, newVal) {
     if (scope.startsWith('items_')) {
       const bpId = scope.substring(6);
       list = (d.items || []).filter(i => i.backpackId === bpId);
+    } else if (scope.startsWith('encyclopedia_')) {
+      const subId = scope.substring(13);
+      list = (d.encyclopediaItems || []).filter(i => i.subCategoryId === subId);
     } else {
       list = d[scope] || [];
     }
@@ -658,7 +688,7 @@ function renderCustomPropField(prop, currentValue, onChangeAction) {
     const entries = collectGlossary(prop.refType);
     const selIds = Array.isArray(currentValue) ? currentValue : (currentValue ? [currentValue] : []);
     const selNames = entries.filter(e => selIds.includes(e.id)).map(e => e.name);
-    const refTypeNavMap = { faction: 'factions', location: 'locations', character: 'characters', race: 'races', timeline: 'events' };
+    const refTypeNavMap = { faction: 'factions', location: 'locations', character: 'characters', race: 'races', timeline: 'events', encyclopediaSub: 'encyclopedia' };
     return `<div class="form-group"><label>${esc(prop.name)}</label>
       <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
         <span class="text-xs text-muted">已选 ${selIds.length} 个</span>
@@ -705,7 +735,7 @@ function getCustomPropsForScope(scope) {
 
 async function openCustomPropRefSelect(propId, refType) {
   const entries = collectGlossary(refType);
-  if (entries.length === 0) { alert('暂无可选项'); return; }
+  if (entries.length === 0) { showToast('暂无可选项'); return; }
   const key = 'cp_' + propId;
   const prop = (state.data.propertyDefs.customProps || []).find(p => p.id === propId);
   if (!prop) return;
@@ -716,6 +746,10 @@ async function openCustomPropRefSelect(propId, refType) {
       const bpId = s.substring(6);
       list = (state.data.items || []).filter(i => i.backpackId === bpId);
       selId = editItemId;
+    } else if (s.startsWith('encyclopedia_')) {
+      const subId = s.substring(13);
+      list = (state.data.encyclopediaItems || []).filter(i => i.subCategoryId === subId);
+      selId = editEncyclopediaItemId;
     } else {
       list = state.data[s] || [];
       selId = s === 'factions' ? state.selectedFactionId :
@@ -748,6 +782,10 @@ function handleCustomPropMultiSelect(propId, optName, checked) {
       const bpId = s.substring(6);
       list = (state.data.items || []).filter(i => i.backpackId === bpId);
       selId = editItemId;
+    } else if (s.startsWith('encyclopedia_')) {
+      const subId = s.substring(13);
+      list = (state.data.encyclopediaItems || []).filter(i => i.subCategoryId === subId);
+      selId = editEncyclopediaItemId;
     } else {
       list = state.data[s] || [];
       selId = s === 'factions' ? state.selectedFactionId :
@@ -822,7 +860,7 @@ function savePropCategory(catId, field, value) {
   if (field === 'name' && value.trim()) {
     if (value.trim() !== oldValue) {
       if ((state.data.categories || []).find(c => c.type === cat.type && c.name === value.trim() && c.id !== catId)) {
-        alert('该类别已存在');
+        showToast('该类别已存在');
         renderTabContent();
         return;
       }

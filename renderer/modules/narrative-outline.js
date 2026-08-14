@@ -200,11 +200,15 @@ function renderOutlineChapter(ch,vi,ci) {
     }).join('');
   }
 
-  return `<div class="outline-chapter" style="border:1px solid var(--border);border-radius:var(--radius-xs);margin-bottom:6px;background:var(--white);overflow:hidden">
+  return `<div class="outline-chapter" data-vi="${vi}" data-ci="${ci}" style="border:1px solid var(--border);border-radius:var(--radius-xs);margin-bottom:6px;background:var(--white);overflow:hidden">
     <div style="padding:8px 12px;display:flex;align-items:center;gap:6px;cursor:pointer;background:var(--white);border-bottom:${collapsed?'none':'1px solid var(--border)'}" onclick="toggleOutlineCollapse('ch_${vi}_${ci}')">
       <span style="transition:transform 0.2s;display:inline-block;font-size:10px;${collapsed?'':'transform:rotate(90deg)'}">▶</span>
+      <span class="ol-ch-drag" style="cursor:grab;font-size:12px;color:var(--warm-gray);user-select:none" title="拖拽排序" onclick="event.stopPropagation()">⠿</span>
       <strong style="flex:1;font-size:13px">📄 ${esc(chTitle)}</strong>
-      <button class="btn btn-xs btn-danger" onclick="event.stopPropagation();deleteOutlineChapter(${vi},${ci})">×</button>
+      <div style="display:flex;gap:2px" onclick="event.stopPropagation()">
+        <button class="btn btn-xs btn-outline" style="padding:0 4px;font-size:10px" onclick="insertOutlineChapter(${vi},${ci})" title="在此处插入">⬆</button>
+        <button class="btn btn-xs btn-danger" style="padding:0 4px;font-size:10px" onclick="deleteOutlineChapter(${vi},${ci})">×</button>
+      </div>
     </div>
     ${collapsed ? '' : `<div style="padding:10px 12px">
     <div class="form-group"><input value="${esc(ch.title||'')}" placeholder="章节标题" onchange="updateOutlineChapter(${vi},${ci},'title',this.value)" style="width:100%;padding:6px 10px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:var(--font-body)"></div>
@@ -279,7 +283,20 @@ function setupOutline() {
       if (!volEl) return;
       const vi = parseInt(volEl.dataset.vi);
       const rect = volEl.getBoundingClientRect();
-      dragState = { vi, el: volEl, offsetY: ev.clientY - rect.top, startX: ev.clientX, startY: ev.clientY, moved: false, ghost: null, origEl: volEl };
+      dragState = { type: 'volume', vi, el: volEl, offsetY: ev.clientY - rect.top, startX: ev.clientX, startY: ev.clientY, moved: false, ghost: null, origEl: volEl };
+    });
+  });
+
+  list.querySelectorAll('.ol-ch-drag').forEach(handle => {
+    handle.addEventListener('mousedown', function(ev) {
+      if (ev.button !== 0) return;
+      ev.preventDefault();
+      const chEl = this.closest('.outline-chapter');
+      if (!chEl) return;
+      const vi = parseInt(chEl.dataset.vi);
+      const ci = parseInt(chEl.dataset.ci);
+      const rect = chEl.getBoundingClientRect();
+      dragState = { type: 'chapter', vi, ci, el: chEl, offsetY: ev.clientY - rect.top, startX: ev.clientX, startY: ev.clientY, moved: false, ghost: null, origEl: chEl };
     });
   });
 
@@ -306,21 +323,43 @@ function setupOutline() {
     dragState.ghost.style.top = (clientY - dragState.offsetY) + 'px';
 
     list.querySelectorAll('.ol-drop-indicator').forEach(el => el.remove());
-    const vols = list.querySelectorAll('.outline-volume');
-    for (let i = 0; i < vols.length; i++) {
-      const r = vols[i].getBoundingClientRect();
-      if (clientY < r.top + r.height / 2) {
-        const ind = document.createElement('div');
-        ind.className = 'ol-drop-indicator';
-        ind.style.cssText = 'height:3px;background:var(--accent);border-radius:2px;margin:4px 0';
-        vols[i].before(ind);
-        break;
+    if (dragState.type === 'volume') {
+      const vols = list.querySelectorAll('.outline-volume');
+      for (let i = 0; i < vols.length; i++) {
+        const r = vols[i].getBoundingClientRect();
+        if (clientY < r.top + r.height / 2) {
+          const ind = document.createElement('div');
+          ind.className = 'ol-drop-indicator';
+          ind.style.cssText = 'height:3px;background:var(--accent);border-radius:2px;margin:4px 0';
+          vols[i].before(ind);
+          break;
+        }
+        if (i === vols.length - 1) {
+          const ind = document.createElement('div');
+          ind.className = 'ol-drop-indicator';
+          ind.style.cssText = 'height:3px;background:var(--accent);border-radius:2px;margin:4px 0';
+          vols[i].after(ind);
+        }
       }
-      if (i === vols.length - 1) {
-        const ind = document.createElement('div');
-        ind.className = 'ol-drop-indicator';
-        ind.style.cssText = 'height:3px;background:var(--accent);border-radius:2px;margin:4px 0';
-        vols[i].after(ind);
+    } else if (dragState.type === 'chapter') {
+      const volEl = list.querySelector(`.outline-volume[data-vi="${dragState.vi}"]`);
+      if (!volEl) return;
+      const chs = volEl.querySelectorAll('.outline-chapter');
+      for (let i = 0; i < chs.length; i++) {
+        const r = chs[i].getBoundingClientRect();
+        if (clientY < r.top + r.height / 2) {
+          const ind = document.createElement('div');
+          ind.className = 'ol-drop-indicator';
+          ind.style.cssText = 'height:3px;background:var(--accent);border-radius:2px;margin:2px 0';
+          chs[i].before(ind);
+          break;
+        }
+        if (i === chs.length - 1) {
+          const ind = document.createElement('div');
+          ind.className = 'ol-drop-indicator';
+          ind.style.cssText = 'height:3px;background:var(--accent);border-radius:2px;margin:2px 0';
+          chs[i].after(ind);
+        }
       }
     }
   }
@@ -340,21 +379,43 @@ function setupOutline() {
   window._olMouseUp = function(ev) {
     if (!dragState) return;
     if (!dragState.moved) { endOutlineDrag(); return; }
-    const vols = list.querySelectorAll('.outline-volume');
-    let dropIdx = state.data.outline.length;
-    for (let i = 0; i < vols.length; i++) {
-      const r = vols[i].getBoundingClientRect();
-      if (ev.clientY < r.top + r.height / 2) { dropIdx = i; break; }
+
+    if (dragState.type === 'volume') {
+      const vols = list.querySelectorAll('.outline-volume');
+      let dropIdx = state.data.outline.length;
+      for (let i = 0; i < vols.length; i++) {
+        const r = vols[i].getBoundingClientRect();
+        if (ev.clientY < r.top + r.height / 2) { dropIdx = i; break; }
+      }
+      const fromIdx = dragState.vi;
+      if (fromIdx !== dropIdx && fromIdx !== dropIdx - 1) {
+        const arr = state.data.outline;
+        const item = arr.splice(fromIdx, 1)[0];
+        const insertAt = dropIdx > fromIdx ? dropIdx - 1 : dropIdx;
+        arr.splice(insertAt, 0, item);
+        autoSave();
+        renderTabContent();
+      }
+    } else if (dragState.type === 'chapter') {
+      const volEl = list.querySelector(`.outline-volume[data-vi="${dragState.vi}"]`);
+      if (!volEl) { endOutlineDrag(); return; }
+      const chs = volEl.querySelectorAll('.outline-chapter');
+      const chapters = state.data.outline[dragState.vi].chapters;
+      let dropIdx = chapters.length;
+      for (let i = 0; i < chs.length; i++) {
+        const r = chs[i].getBoundingClientRect();
+        if (ev.clientY < r.top + r.height / 2) { dropIdx = i; break; }
+      }
+      const fromIdx = dragState.ci;
+      if (fromIdx !== dropIdx && fromIdx !== dropIdx - 1) {
+        const item = chapters.splice(fromIdx, 1)[0];
+        const insertAt = dropIdx > fromIdx ? dropIdx - 1 : dropIdx;
+        chapters.splice(insertAt, 0, item);
+        autoSave();
+        renderTabContent();
+      }
     }
-    const fromIdx = dragState.vi;
-    if (fromIdx !== dropIdx && fromIdx !== dropIdx - 1) {
-      const arr = state.data.outline;
-      const item = arr.splice(fromIdx, 1)[0];
-      const insertAt = dropIdx > fromIdx ? dropIdx - 1 : dropIdx;
-      arr.splice(insertAt, 0, item);
-      autoSave();
-      renderTabContent();
-    }
+
     endOutlineDrag();
   };
 
@@ -367,6 +428,7 @@ function setOutlineViewMode(key, mode) { if (!state.outlineViewMode) state.outli
 function addOutlineVolume() { if(!state.data.outline) state.data.outline=[]; state.data.outline.push({title:'',summary:'',chapters:[],characters:[],factions:[],locations:[],events:[],items:[],customProps:{}}); autoSave(); renderTabContent(); }
 function insertOutlineVolume(vi) { if(!state.data.outline) state.data.outline=[]; state.data.outline.splice(vi,0,{title:'',summary:'',chapters:[],characters:[],factions:[],locations:[],events:[],items:[],customProps:{}}); autoSave(); renderTabContent(); }
 function addOutlineChapter(vi) { if (!state.data.outline[vi].chapters) state.data.outline[vi].chapters=[]; state.data.outline[vi].chapters.push({title:'',summary:'',characters:[],factions:[],locations:[],events:[],items:[]}); autoSave(); renderTabContent(); }
+function insertOutlineChapter(vi,ci) { if (!state.data.outline[vi].chapters) state.data.outline[vi].chapters=[]; state.data.outline[vi].chapters.splice(ci,0,{title:'',summary:'',characters:[],factions:[],locations:[],events:[],items:[]}); autoSave(); renderTabContent(); }
 async function aiGenOutline() { const el=$('#ai-outline-result'); const text=await runAI(window.api.aiGenerateOutline(state.data),el); if (text) { const arr=tryParseJSONArray(text)||tryParseJSON(text); if (arr&&Array.isArray(arr)) { if (!state.data.outline) state.data.outline=[]; arr.forEach(v=>state.data.outline.push({title:v.title||'',summary:v.summary||'',chapters:(v.chapters||[]).map(ch=>({title:ch.title||ch||'',summary:ch.summary||'',characters:[],factions:[],locations:[],events:[],items:[]})),characters:[],factions:[],locations:[],events:[],items:[],customProps:{}})); autoSave(); renderTabContent(); } } }
 function updateOutlineVolume(vi,key,value) { if (state.data.outline&&state.data.outline[vi]) { state.data.outline[vi][key]=value; autoSave(); } }
 function updateOutlineChapter(vi,ci,key,value) { if (state.data.outline&&state.data.outline[vi]&&state.data.outline[vi].chapters&&state.data.outline[vi].chapters[ci]) { state.data.outline[vi].chapters[ci][key]=value; autoSave(); } }
