@@ -4,6 +4,7 @@
 // ============================================================
 
 function renderFactions() {
+  const returnBtn = state._mapReturnFromTab ? `<button class="btn btn-xs btn-outline" onclick="const t=state._mapReturnFromTab;state._mapReturnFromTab=null;switchTab(t||'map')" style="margin-right:4px">🗺️ 返回地图</button>` : '';
   const factionRelDefs = [
     { key:'character', label:'角色', field:'members', getItems:()=>collectGlossary('character') },
     { key:'location', label:'地点', fields:['headquarters'], getItems:()=>collectGlossary('location') },
@@ -11,7 +12,7 @@ function renderFactions() {
     { key:'event', label:'事件', field:'relatedEvents', getItems:()=>(state.data.timeline||[]).map(e=>({id:e.id,name:e.name||e.title||'未命名'})) },
   ];
   return `<div class="faction-layout">
-    <div class="faction-list-panel"><div class="flex-between mb-8"><h3>🏰 势力列表</h3><div class="flex-gap"><button class="btn btn-ai btn-sm" onclick="aiGenFaction()">🤖 AI 生成</button><button class="btn btn-sm btn-primary" onclick="addFaction()">+ 新建</button></div></div>
+    <div class="faction-list-panel"><div class="flex-between mb-8"><h3>🏰 势力列表</h3><div class="flex-gap">${returnBtn}<button class="btn btn-sm btn-primary" onclick="addFaction()">+ 新建</button></div></div>
       ${renderSearchBox('factionSearch')}
       ${renderRelFilter('factionRelFilter', factionRelDefs)}
       <div id="faction-list">${renderFactionList()}</div></div>

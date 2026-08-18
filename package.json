@@ -40,6 +40,9 @@
   },
   "dependencies": {
     "animejs": "^4.5.0",
-    "gsap": "^3.15.0"
+    "d3-delaunay": "^6.0.4",
+    "gsap": "^3.15.0",
+    "pixi.js": "^8.19.0",
+    "simplex-noise": "^4.0.3"
   }
 }

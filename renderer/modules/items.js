@@ -16,10 +16,11 @@ const EMOJI_CATEGORIES = {
   '书籍': ['📖','📜','📚','📓','📃','🏷️','🔖','📰'],
   '自然': ['🌿','🌸','🍄','🌲','🍁','🌺','🌻','🌱','🍀','🌾'],
   '动物': ['🐉','🦅','🐺','🐍','🦁','🐴','🦇','🐈','🦊','🐻'],
-  '杂项': ['📦','🎒','💰','🎁','🎭','🧸','🎲','🃏','🎵','🔔','🕯️','🗺️','🧭','⏳','🪙','⚱️','🪦','🧿']
+  '杂项': ['📦','🎒','💰','🎁','🎭','🧸','🎲','🃏','🎵','🔔','🕯️','🗺️','🧭','⏳','🪙','⚱️','🪦','🧿','📍','📌','🏕️','⛺','🏰','🏯','🏠','🏙️','⛰️','🌋','🏖️','🏝️']
 };
 
 function renderItems() {
+  const returnBtn = state._mapReturnFromTab ? `<button class="btn btn-xs btn-outline" onclick="const t=state._mapReturnFromTab;state._mapReturnFromTab=null;switchTab(t||'map')" style="margin-right:4px">🗺️ 返回地图</button>` : '';
   const backpacks = state.data.worldBackpacks||[];
   const selectedBp = backpacks.find(bp=>bp.id===state.selectedItemId);
   const itemRelDefs = [
@@ -28,7 +29,7 @@ function renderItems() {
     { key:'location', label:'地点', field:'relatedLocations', getItems:()=>collectGlossary('location') },
     { key:'event', label:'事件', field:'relatedEvents', getItems:()=>(state.data.timeline||[]).map(e=>({id:e.id,name:e.name||e.title||'未命名'})) },
   ];
-  return `<div class="item-layout"><div class="item-list-panel"><div class="flex-between mb-8"><h3>🌍 世界系统</h3><button class="btn btn-sm btn-primary" onclick="addBackpack()">+ 新建系统</button></div>
+  return `<div class="item-layout"><div class="item-list-panel"><div class="flex-between mb-8"><h3>🌍 世界系统</h3><div class="flex-gap">${returnBtn}<button class="btn btn-sm btn-primary" onclick="addBackpack()">+ 新建系统</button></div></div>
     ${renderSearchBox('itemSearch')}
     ${renderRelFilter('itemRelFilter', itemRelDefs)}
     <div id="item-list">${renderBackpackList()}</div></div>
@@ -331,7 +332,8 @@ async function openItemBackpackLinkModal(itemId, bpId) {
 function openEmojiPicker() {
   const modal = $('#modal-box');
   const overlay = $('#modal-overlay');
-  const customLib = (state.data.emojiLib || []).map(em => em.emoji);
+  const _seen = new Set();
+  const customLib = (state.data.emojiLib || []).filter(em => { if (_seen.has(em.emoji)) return false; _seen.add(em.emoji); return true; }).map(em => em.emoji);
   const customLibHtml = customLib.length > 0 ? `<div class="emoji-cat"><div class="emoji-cat-title">⭐ 自定义 Emoji</div><div class="emoji-grid">${customLib.map(e => `<button class="emoji-btn" onclick="selectEmoji('${e}')">${e}</button>`).join('')}</div></div>` : '';
   const categories = Object.entries(EMOJI_CATEGORIES).map(([cat, emojis]) => {
     return `<div class="emoji-cat"><div class="emoji-cat-title">${esc(cat)}</div><div class="emoji-grid">${emojis.map(e => `<button class="emoji-btn" onclick="selectEmoji('${e}')">${e}</button>`).join('')}</div></div>`;

@@ -4,6 +4,7 @@
 // ============================================================
 
 function renderCharacters() {
+  const returnBtn = state._mapReturnFromTab ? `<button class="btn btn-xs btn-outline" onclick="const t=state._mapReturnFromTab;state._mapReturnFromTab=null;switchTab(t||'map')" style="margin-right:4px">🗺️ 返回地图</button>` : '';
   const charRelDefs = [
     { key:'faction', label:'势力', field:'factions', getItems:()=>(state.data.factions||[]).map(f=>({id:f.id,name:f.name||'未命名'})) },
     { key:'location', label:'地点', field:'locations', getItems:()=>collectGlossary('location') },
@@ -11,7 +12,7 @@ function renderCharacters() {
     { key:'item', label:'物品', grouped:true, getGroups:()=>(state.data.worldBackpacks||[]).map(bp=>({id:bp.id,name:bp.name||'未命名',items:(state.data.items||[]).filter(i=>i.backpackId===bp.id).map(i=>({id:i.id,name:i.name||'未命名'}))})).filter(g=>g.items.length>0) },
   ];
   return `<div class="char-layout">
-    <div class="char-list-panel"><div class="flex-between mb-8"><h3>👤 角色列表</h3><div class="flex-gap"><button class="btn btn-ai btn-sm" onclick="aiGenCharacter()">🤖 AI 生成</button><button class="btn btn-sm btn-primary" onclick="addCharacter()">+ 新建</button></div></div>
+    <div class="char-list-panel"><div class="flex-between mb-8"><h3>👤 角色列表</h3><div class="flex-gap">${returnBtn}<button class="btn btn-sm btn-primary" onclick="addCharacter()">+ 新建</button></div></div>
       <div><select id="char-role-filter" onchange="refreshCharList()" style="width:100%;padding:6px 10px;margin-bottom:8px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:var(--font-body)">
         <option value="all">全部角色</option><option value="主角">主角</option><option value="反派">反派</option><option value="重要配角">重要配角</option><option value="次要角色">次要角色</option><option value="NPC">NPC</option><option value="路人">路人</option></select></div>
       ${renderSearchBox('charSearch')}
@@ -413,6 +414,15 @@ function showPreviewCard(type, id, event, contextDesc) {
     detail = (p.description||'').substring(0, 100);
     explorerType = 'power';
     explorerId = id;
+  } else if (type === 'worldSystem') {
+    const ws = (state.data.worldBackpacks||[]).find(w=>w.id===id||w.name===id);
+    if (!ws) return;
+    title = '🌍 ' + esc(ws.name || '未命名系统');
+    const wsItems = (state.data.items||[]).filter(i=>i.backpackId===ws.id);
+    subtitle = wsItems.length > 0 ? `${wsItems.length} 个物品` : '空系统';
+    detail = '';
+    explorerType = 'worldSystem';
+    explorerId = ws.id;
   } else if (type === 'outline_volume') {
     const vi = parseInt(id.replace('vol_',''));
     const vol = (state.data.outline||[])[vi];

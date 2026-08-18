@@ -145,6 +145,11 @@ function createWindow() {
   });
   mainWindow.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   mainWindow.setMenuBarVisibility(false);
+  mainWindow.on('close', (e) => {
+    if (!mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('will-close');
+    }
+  });
 }
 
 app.whenReady().then(createWindow);
@@ -189,7 +194,7 @@ ipcMain.handle('create-project', (_, name) => {
     storylines: [], outline: [], statusTable: [],
     characterRelations: [],
     constitution: [],
-    worldMap: { seed: Math.floor(Math.random()*100000), points: [], territories: [] },
+    worldMap: { seed: 0, genCount: 12, territories: [], locationMarkers: [], nextId: 1 },
     rules: { style: '', taboos: '', consistency: '' }
   };
   saveProject(id, projectData);

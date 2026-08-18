@@ -41,5 +41,7 @@ contextBridge.exposeInMainWorld('api', {
 
   onAiStreamChunk: (callback) => { const handler = (_, chunk) => callback(chunk); ipcRenderer.on('ai-stream-chunk', handler); return () => ipcRenderer.removeListener('ai-stream-chunk', handler); },
   onAiStreamDone: (callback) => { const handler = () => callback(); ipcRenderer.on('ai-stream-done', handler); return () => ipcRenderer.removeListener('ai-stream-done', handler); },
-  onAiStreamError: (callback) => { const handler = (_, err) => callback(err); ipcRenderer.on('ai-stream-error', handler); return () => ipcRenderer.removeListener('ai-stream-error', handler); }
+  onAiStreamError: (callback) => { const handler = (_, err) => callback(err); ipcRenderer.on('ai-stream-error', handler); return () => ipcRenderer.removeListener('ai-stream-error', handler); },
+
+  onWillClose: (callback) => { ipcRenderer.on('will-close', callback); }
 });

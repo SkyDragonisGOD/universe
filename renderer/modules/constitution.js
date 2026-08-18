@@ -76,6 +76,10 @@ function getAllExplorerEntries() {
       entries.push({ type:'outline_chapter', id:`chap_${vi}_${ci}`, icon:'📄', name:chap.title||`第${ci+1}章`, desc:(chap.summary||'').substring(0,120), tags:[vol.title||`第${vi+1}卷`] });
     });
   });
+  (d.worldBackpacks||[]).forEach(ws => {
+    const wsItems = (d.items||[]).filter(i=>i.backpackId===ws.id);
+    entries.push({ type:'worldSystem', id:ws.id, icon:'🌍', name:ws.name||'未命名系统', desc:`${wsItems.length} 个物品`, tags:['世界系统'] });
+  });
   return entries;
 }
 
@@ -179,6 +183,10 @@ function showExplorerDetail(type, id) {
     const it = (state.data.encyclopediaItems||[]).find(i=>i.id===id);
     if (!it) return;
     html = renderExplorerEncyclopediaDetail(it);
+  } else if (type === 'worldSystem') {
+    const ws = (state.data.worldBackpacks||[]).find(w=>w.id===id);
+    if (!ws) return;
+    html = renderExplorerWorldSystemDetail(ws);
   } else if (type === 'outline_volume') {
     const vi = parseInt(id.replace('vol_',''));
     const vol = (state.data.outline||[])[vi];
@@ -428,6 +436,17 @@ function renderExplorerChapterDetail(chap, vi, ci) {
     </div>
     ${chap.summary?`<div class="wiki-section"><div class="wiki-section-title">概述</div><div class="wiki-value">${esc(chap.summary)}</div></div>`:''}
     ${sceneLinks.length>0?`<div class="wiki-section"><div class="wiki-section-title">场景</div>${sceneLinks.join('')}</div>`:''}
+  </div>`;
+}
+
+function renderExplorerWorldSystemDetail(ws) {
+  const items = (state.data.items||[]).filter(i=>i.backpackId===ws.id);
+  return `<div class="wiki-page" style="padding:20px">
+    <button class="btn btn-sm btn-outline" onclick="goBackExplorer()" style="margin-bottom:12px">← 返回</button>
+    <div class="wiki-header"><h2 class="wiki-title">🌍 ${esc(ws.name||'未命名系统')}</h2>
+      <div class="wiki-meta"><span class="wiki-badge skill">${items.length} 个物品</span></div>
+    </div>
+    ${items.length>0?`<div class="wiki-section"><div class="wiki-section-title">物品列表</div><div class="wiki-tags">${items.map(it=>`<span class="wiki-tag item" style="cursor:pointer" onclick="showPreviewCard('item','${esc(it.id)}',event)">${it.icon||'📦'} ${esc(it.name)}</span>`).join('')}</div></div>`:'<div class="wiki-section"><div class="wiki-value text-muted">此系统暂无物品</div></div>'}
   </div>`;
 }
 

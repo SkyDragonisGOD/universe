@@ -10,9 +10,7 @@ function renderOverview() {
     <div class="form-group"><label>世界名称</label><input id="ov-name" value="${esc(p.name)}" onchange="updateProjectField('name',this.value)"></div>
     <div class="form-row"><div class="form-group"><label>类型/风格</label><input id="ov-genre" value="${esc(p.genre||'')}" onchange="updateProjectField('genre',this.value)"></div>
     <div class="form-group"><label>标签（逗号分隔）</label><input id="ov-tags" value="${esc((p.tags||[]).join(', '))}" onchange="updateProjectField('tags',this.value.split(',').map(t=>t.trim()).filter(Boolean))"></div></div>
-    <div class="form-group"><label>世界观简介</label><textarea id="ov-synopsis" rows="4" onchange="updateProjectField('synopsis',this.value)">${esc(p.synopsis||'')}</textarea></div>
-    <div class="ai-section-actions"><button class="btn btn-ai btn-sm" onclick="aiGenSynopsis()">🤖 AI 生成简介</button><button class="btn btn-ai btn-sm" onclick="aiGenAllWorldview()">🤖 AI 一键生成世界观</button></div>
-    <div id="ai-overview-result"></div></div>
+    <div class="form-group"><label>世界观简介</label><textarea id="ov-synopsis" rows="4" onchange="updateProjectField('synopsis',this.value)">${esc(p.synopsis||'')}</textarea></div></div>
     <div class="card"><h3>数据统计</h3><div class="grid-3">
       <div class="attr-item"><div class="attr-name">📚 词条总数</div><div class="attr-value">${getAllExplorerEntries().length}</div></div>
       ${[['地点','locations'],['角色','characters'],['势力','factions'],['关系图','characterRelations'],['大纲','outline'],['力量体系','powers']].map(([label,key]) => {
@@ -25,8 +23,13 @@ function renderOverview() {
       ${(state.data.encyclopediaSubCategories||[]).filter(sub => (state.data.encyclopediaItems||[]).filter(i=>i.subCategoryId===sub.id).length > 0).map(sub => {
         const itemCount = (state.data.encyclopediaItems||[]).filter(i=>i.subCategoryId===sub.id).length;
         return `<div class="attr-item"><div class="attr-name">${sub.icon||'📄'} ${esc(sub.name)}</div><div class="attr-value">${itemCount}</div></div>`;
-      }).join('')}</div></div>
-    <div class="card"><h3>🤖 AI 设置</h3><div class="llm-bar" id="llm-status-bar"><span class="status-dot disconnected"></span> 未配置 · <button class="btn btn-xs btn-outline" onclick="showLLMSettings()">配置</button></div></div>`;
+      }).join('')}
+      <div class="attr-item"><div class="attr-name">📦 资源</div><div class="attr-value">${(state.data.resources||[]).length}</div></div>
+      <div class="attr-item"><div class="attr-name">🗺️ 领地</div><div class="attr-value">${(state.data.worldMap?.territories||[]).length}</div></div>
+      <div class="attr-item"><div class="attr-name">📍 地图标注</div><div class="attr-value">${(state.data.worldMap?.locationMarkers||[]).length}</div></div>
+      <div class="attr-item"><div class="attr-name">🧬 种族</div><div class="attr-value">${(state.data.races||[]).length}</div></div>
+      <div class="attr-item"><div class="attr-name">⚡ 事件</div><div class="attr-value">${(state.data.timeline||[]).length}</div></div>
+    </div></div>`;
 }
 
 async function aiGenSynopsis() { const el = $('#ai-overview-result'); const text = await runAI(window.api.aiGenerateSynopsis(state.data), el); if (text) { state.data.project.synopsis = text; $('#ov-synopsis').value = text; autoSave(); } }
@@ -60,8 +63,6 @@ function updateProjectField(key, value) { state.data.project[key] = value; if (k
 function renderWorldview() {
   const w = state.data.worldview || {};
   return `<div class="card"><h3>世界观设定</h3>
-    <div class="ai-section-actions"><button class="btn btn-ai btn-sm" onclick="aiGenWorldview()">🤖 AI 生成世界观</button></div>
-    <div id="ai-worldview-result"></div>
     <div class="worldview-section"><h4>世界起源</h4>
       <div class="form-group"><label>简述</label><input id="wv-origin" value="${esc(w.origin||'')}" onchange="updateWorldview('origin',this.value)"></div>
       <div class="form-group"><label>详细描述</label><textarea id="wv-originDetail" rows="4" onchange="updateWorldview('originDetail',this.value)">${esc(w.originDetail||'')}</textarea></div></div>

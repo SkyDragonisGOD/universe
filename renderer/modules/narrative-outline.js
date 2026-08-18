@@ -28,11 +28,10 @@ function renderOutline() {
   let filteredOutline = filterLinked ? outline.filter(hasLinks) : outline;
   filteredOutline = filteredOutline.filter(v => matchRelFilter(v, 'outlineRelFilter', outlineRelMatchDefs));
   return `<div class="card"><h3>📑 大纲/章节</h3>
-    <div class="ai-section-actions"><button class="btn btn-ai btn-sm" onclick="aiGenOutline()">🤖 AI 生成大纲</button><button class="btn btn-sm btn-primary" onclick="addOutlineVolume()">+ 添加卷</button></div>
+    <div style="margin-bottom:8px;display:flex;align-items:center;gap:6px"><button class="btn btn-sm btn-primary" onclick="addOutlineVolume()">+ 添加卷</button></div>
     <div style="margin-bottom:8px;display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--warm-gray)">筛选：</span><button class="btn btn-xs ${filterLinked?'btn-outline':'btn-primary'}" onclick="state.outlineFilterLinked=false;renderTabContent()">全部</button><button class="btn btn-xs ${filterLinked?'btn-primary':'btn-outline'}" onclick="state.outlineFilterLinked=true;renderTabContent()">有关联/章节</button></div>
     ${renderSearchBox('outlineSearch')}
     ${renderRelFilter('outlineRelFilter', outlineRelDefs)}
-    <div id="ai-outline-result"></div>
     <div class="outline-list">${filteredOutline.length===0?'<div class="empty-state"><div class="icon">📑</div><p>暂无大纲</p></div>':filteredOutline.filter(v=>matchSearch(v.name||v.title,'outlineSearch')).map((v)=>{const realIdx=outline.indexOf(v);return renderOutlineVolume(v,realIdx);}).join('')}</div></div>`;
 }
 

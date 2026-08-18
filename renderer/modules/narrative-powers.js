@@ -19,11 +19,11 @@ function renderPowers() {
   ];
   let filteredPowers = filterLinked ? powers.filter(hasLinks) : powers;
   filteredPowers = filteredPowers.filter(p => matchRelFilter(p, 'powerRelFilter', powerRelMatchDefs));
-  return `<div class="card"><h3>⚡ 力量体系</h3><div class="flex-between mb-8"><div class="flex-gap"><button class="btn btn-ai btn-sm" onclick="aiGenPowers()">🤖 AI 生成</button><button class="btn btn-sm btn-primary" onclick="addPower()">+ 添加体系</button></div></div>
+  return `<div class="card"><h3>⚡ 力量体系</h3><div class="flex-between mb-8"><div class="flex-gap"><button class="btn btn-sm btn-primary" onclick="addPower()">+ 添加体系</button></div></div>
     <div style="margin-bottom:8px;display:flex;align-items:center;gap:6px"><span style="font-size:12px;color:var(--warm-gray)">筛选：</span><button class="btn btn-xs ${filterLinked?'btn-outline':'btn-primary'}" onclick="state.powerFilterLinked=false;renderTabContent()">全部</button><button class="btn btn-xs ${filterLinked?'btn-primary':'btn-outline'}" onclick="state.powerFilterLinked=true;renderTabContent()">有关联/内容</button></div>
     ${renderSearchBox('powerSearch')}
     ${renderRelFilter('powerRelFilter', powerRelDefs)}
-    <div id="ai-powers-result"></div><div class="powers-list" id="powers-list">${filteredPowers.length===0?'<div class="empty-state"><div class="icon">⚡</div><p>暂无力量体系</p></div>':filteredPowers.filter(p=>matchSearch(p.name,'powerSearch')).map((p,i)=>{const realIdx=powers.indexOf(p);return renderPowerItem(p,realIdx,customProps);}).join('')}</div></div>`;
+    <div class="powers-list" id="powers-list">${filteredPowers.length===0?'<div class="empty-state"><div class="icon">⚡</div><p>暂无力量体系</p></div>':filteredPowers.filter(p=>matchSearch(p.name,'powerSearch')).map((p,i)=>{const realIdx=powers.indexOf(p);return renderPowerItem(p,realIdx,customProps);}).join('')}</div></div>`;
 }
 
 function renderPowerItem(p,i,customProps) {

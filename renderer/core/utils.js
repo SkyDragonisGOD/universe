@@ -9,6 +9,8 @@ function esc(s) { return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;'
 function jsStr(s) { return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'").replace(/\n/g,'\\n').replace(/\r/g,''); }
 function fmtDate(s) { if (!s) return ''; const d = new Date(s); return d.toLocaleDateString('zh-CN',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}); }
 function autoSave() { clearTimeout(state._saveTimer); state._saveTimer = setTimeout(() => { if (state.currentProjectId && state.data) window.api.saveProject(state.currentProjectId, state.data); }, 500); }
+window.addEventListener('beforeunload', () => { if (state.currentProjectId && state.data) { clearTimeout(state._saveTimer); window.api.saveProject(state.currentProjectId, state.data); } });
+window.api.onWillClose && window.api.onWillClose(() => { if (state.currentProjectId && state.data) { clearTimeout(state._saveTimer); window.api.saveProject(state.currentProjectId, state.data); } });
 function ensureData(key, defaultValue) { if (state.data[key] === undefined) state.data[key] = defaultValue; return state.data[key]; }
 function checkDuplicate(collection, name, excludeId) { if (!name || !name.trim()) return false; return (collection || []).some(item => item.name === name.trim() && item.id !== excludeId); }
 

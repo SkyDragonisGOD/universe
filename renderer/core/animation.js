@@ -29,7 +29,7 @@ function animatePageContent(scope) {
   container.querySelectorAll('.char-detail-panel, .faction-detail-panel, .item-detail-panel, .race-detail-panel, .location-detail-panel, .wiki-page').forEach(function(panel, i) {
     animatedContent(panel, { distance: 40, duration: 0.7, delay: i * 0.06, ease: 'power3.out' });
   });
-  container.querySelectorAll('.card, .worldview-section, .constitution-entry, .encyclopedia-layout, .kanban-column, .explorer-card').forEach(function(el, i) {
+  container.querySelectorAll('.card, .worldview-section, .constitution-entry, .encyclopedia-layout, .kanban-column, .explorer-card, .fmap-layout, .fmap-toolbar, .fmap-sidebar-section, .fmap-stats-content, .relation-layout, .relation-list-panel, .relation-detail-panel').forEach(function(el, i) {
     if (el.closest('.char-detail-panel, .faction-detail-panel, .item-detail-panel, .race-detail-panel, .location-detail-panel, .wiki-page')) { gsap.set(el, { opacity: 1, y: 0, x: 0, visibility: 'visible' }); return; }
     animatedContent(el, { distance: 30, duration: 0.6, delay: 0.05 + i * 0.05, ease: 'power3.out' });
   });

@@ -2,7 +2,7 @@
 // 世界生成器 — 屏幕导航 & 首页 & 侧栏
 // ============================================================
 
-function showScreen(id) {
+function showScreen(id, skipAnimation) {
   $$('.screen').forEach(s => s.classList.remove('active'));
   const screen = $(`#${id}-screen`);
   screen.classList.add('active');
@@ -15,22 +15,32 @@ function showScreen(id) {
     actions.forEach(btn => { gsap.set(btn, { opacity: 0, y: 20 }); });
     const cards = $$('#home-screen .project-card');
     cards.forEach(card => { gsap.set(card, { opacity: 0, y: 24 }); });
-    requestAnimationFrame(() => {
-      if (h1) splitTextAnimate(h1, { delay: 50, duration: 800, ease: 'outExpo', from: { opacity: 0, translateY: 20 }, to: { opacity: 1, translateY: 0 } });
-      if (sub) splitTextAnimate(sub, { delay: 30, duration: 600, ease: 'outExpo', from: { opacity: 0, translateY: 12 }, to: { opacity: 1, translateY: 0 }, split_type: 'words' });
-      actions.forEach((btn, i) => {
-        gsap.to(btn, { opacity: 1, y: 0, duration: 0.5, delay: 0.15 + i * 0.08, ease: 'power3.out' });
-      });
-    });
-    loadHome().then(() => {
-      const newCards = $$('#home-screen .project-card');
-      newCards.forEach(card => { card.style.transition = 'none'; gsap.set(card, { opacity: 0, y: 24 }); });
+    if (skipAnimation) {
+      if (h1) { h1.style.opacity = '1'; h1.style.transform = 'none'; }
+      if (sub) { sub.style.opacity = '1'; sub.style.transform = 'none'; }
+      actions.forEach(btn => { gsap.set(btn, { opacity: 1, y: 0 }); });
       requestAnimationFrame(() => {
-        newCards.forEach((card, i) => {
-          gsap.to(card, { opacity: 1, y: 0, duration: 0.5, delay: 0.2 + i * 0.06, ease: 'power3.out', onComplete: function() { card.style.transition = ''; } });
+        const newCards = $$('#home-screen .project-card');
+        newCards.forEach(card => { gsap.set(card, { opacity: 1, y: 0 }); });
+      });
+    } else {
+      requestAnimationFrame(() => {
+        if (h1) splitTextAnimate(h1, { delay: 50, duration: 800, ease: 'outExpo', from: { opacity: 0, translateY: 20 }, to: { opacity: 1, translateY: 0 } });
+        if (sub) splitTextAnimate(sub, { delay: 30, duration: 600, ease: 'outExpo', from: { opacity: 0, translateY: 12 }, to: { opacity: 1, translateY: 0 }, split_type: 'words' });
+        actions.forEach((btn, i) => {
+          gsap.to(btn, { opacity: 1, y: 0, duration: 0.5, delay: 0.15 + i * 0.08, ease: 'power3.out' });
         });
       });
-    });
+      loadHome().then(() => {
+        const newCards = $$('#home-screen .project-card');
+        newCards.forEach(card => { card.style.transition = 'none'; gsap.set(card, { opacity: 0, y: 24 }); });
+        requestAnimationFrame(() => {
+          newCards.forEach((card, i) => {
+            gsap.to(card, { opacity: 1, y: 0, duration: 0.5, delay: 0.2 + i * 0.06, ease: 'power3.out', onComplete: function() { card.style.transition = ''; } });
+          });
+        });
+      });
+    }
   } else if (id === 'editor') {
     const header = $('.editor-header');
     if (header) { gsap.set(header, { opacity: 0, y: -20 }); requestAnimationFrame(() => { gsap.to(header, { opacity: 1, y: 0, duration: 0.5, ease: 'power3.out' }); }); }
@@ -100,6 +110,8 @@ async function openProject(id) {
 async function createProject() {
   const name = await customPrompt('请输入世界名称', '新世界');
   if (!name) return;
+  const existing = (state.projects || []).find(p => p.name === name);
+  if (existing) { showToast('已存在同名世界：' + name); return; }
   try {
     const result = await window.api.createProject(name);
     if (result) { state.projects.unshift({ id: result.id, name, createdAt: result.data.project.createdAt, lastModified: result.data.project.createdAt }); renderProjectList(); openProject(result.id); }
@@ -120,7 +132,7 @@ async function deleteProject(id) {
   if (!await customConfirm('确定删除此项目？此操作不可撤销。')) return;
   await window.api.deleteProject(id);
   state.projects = state.projects.filter(p => p.id !== id);
-  if (state.currentProjectId === id) { state.currentProjectId = null; state.data = null; showScreen('home'); }
+  if (state.currentProjectId === id) { state.currentProjectId = null; state.data = null; showScreen('home', true); }
   renderProjectList();
 }
 
@@ -275,6 +287,8 @@ function renderTabs() {
 function render() { renderTabs(); renderTabContent(); }
 
 function renderTabContent() {
+  if (typeof destroyMap === 'function' && state._lastTab === 'map') destroyMap();
+  state._lastTab = state.activeTab;
   const container = $('#tab-content');
   const fn = {
     overview: renderOverview, worldview: renderWorldview, encyclopedia: [renderEncyclopedia, setupEncyclopedia],

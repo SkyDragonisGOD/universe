@@ -21,8 +21,9 @@ function _getAllGraphEntities() {
 }
 
 function _getSelectedGraphSubjects() {
-  if (!state._graphSubjects) {
-    state._graphSubjects = _getAllGraphEntities().map(e => e.typeKey + ':' + e.id);
+  if (state._graphSubjects === undefined || state._graphSubjects === null) {
+    const all = _getAllGraphEntities();
+    state._graphSubjects = all.map(e => e.typeKey + ':' + e.id);
   }
   return state._graphSubjects;
 }
@@ -141,7 +142,7 @@ function _screenToWorld(sx, sy) {
 function renderRelations() {
   const entityTypes = _getGraphEntityTypes();
   const selectedSubjects = _getSelectedGraphSubjects();
-  const allConns = _collectAllConnections(selectedSubjects.length > 0 ? selectedSubjects.map(s=>s.split(':')[1]) : _getAllGraphEntities().map(e=>e.id));
+  const allConns = _collectAllConnections(selectedSubjects.map(s=>s.split(':')[1]));
   const edges = _buildEdgeMap(allConns);
   const vp = _getGraphViewport();
   const zoomPct = Math.round(vp.zoom * 100);
@@ -167,9 +168,8 @@ function renderRelations() {
   }).join('');
   return `<div class="relation-layout">
     <div class="relation-list-panel">
-      <div class="flex-between mb-8"><h3>📋 关系列表</h3><div class="flex-gap"><button class="btn btn-ai btn-sm" onclick="aiGenRelations()">🤖 AI 生成</button><button class="btn btn-sm btn-primary" onclick="addRelation()">+ 新建</button></div></div>
+      <div class="flex-between mb-8"><h3>📋 关系列表</h3><div class="flex-gap"><button class="btn btn-sm btn-primary" onclick="addRelation()">+ 新建</button></div></div>
       ${renderSearchBox('relSearch')}
-      <div id="ai-relations-result"></div>
       <div id="relation-list" class="relations-list">${renderRelationList()}</div>
     </div>
     <div class="relation-detail-panel">
@@ -322,6 +322,9 @@ function selectAllGraphSubjects() {
 function clearAllGraphSubjects() {
   state._graphSubjects = [];
   delete state._graphPositions;
+  state._graphSelectedNode = null;
+  state._graphRelatedNodes = null;
+  state._graphHoveredNode = null;
   renderTabContent();
 }
 
@@ -362,7 +365,36 @@ async function saveCurrentGraphToResources() {
 
 function setupRelations() {
   registerSearchTarget('relSearch','relation-list',renderRelationList);
-  try { drawRelationsGraph(); _setupCanvasInteraction(); } catch(e) { console.error('drawRelationsGraph error:', e); }
+  try { drawRelationsGraph(); _setupCanvasInteraction(); _playGraphEntrance(); } catch(e) { console.error('drawRelationsGraph error:', e); }
+}
+
+function _playGraphEntrance() {
+  const canvas = $('#relations-canvas');
+  if (!canvas) return;
+  const positions = _getGraphPositions();
+  const ids = Object.keys(positions);
+  if (ids.length === 0) return;
+  const savedPositions = {};
+  ids.forEach(id => { savedPositions[id] = { x: positions[id].x, y: positions[id].y }; });
+  const cx = canvas.width / 2, cy = canvas.height / 2;
+  ids.forEach(id => { positions[id].x = cx; positions[id].y = cy; });
+  let progress = 0;
+  const step = () => {
+    progress += 0.04;
+    if (progress >= 1) {
+      ids.forEach(id => { positions[id].x = savedPositions[id].x; positions[id].y = savedPositions[id].y; });
+      drawRelationsGraph();
+      return;
+    }
+    const ease = 1 - Math.pow(1 - progress, 3);
+    ids.forEach(id => {
+      positions[id].x = cx + (savedPositions[id].x - cx) * ease;
+      positions[id].y = cy + (savedPositions[id].y - cy) * ease;
+    });
+    drawRelationsGraph();
+    requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
 }
 
 function _getGraphPositions() {
@@ -375,6 +407,8 @@ function _setupCanvasInteraction() {
   if (!canvas) return;
   let draggingNode = null;
   let dragOffsetX = 0, dragOffsetY = 0;
+  let dragPending = null;
+  let dragStartSX = 0, dragStartSY = 0;
   let panning = false;
   let panStartX = 0, panStartY = 0;
   let panStartPanX = 0, panStartPanY = 0;
@@ -385,19 +419,24 @@ function _setupCanvasInteraction() {
     const sy = e.clientY - rect.top;
     const world = _screenToWorld(sx, sy);
     const positions = _getGraphPositions();
-    const nodeRadius = 20;
     if (e.button === 0) {
       for (const id in positions) {
         const p = positions[id];
         const dx = world.x - p.x, dy = world.y - p.y;
-        if (dx*dx + dy*dy <= (nodeRadius+6)*(nodeRadius+6)) {
-          draggingNode = id;
-          dragOffsetX = dx;
-          dragOffsetY = dy;
-          canvas.style.cursor = 'grabbing';
+        if (dx*dx + dy*dy <= 784) {
+          dragPending = id;
+          dragOffsetX = world.x - p.x;
+          dragOffsetY = world.y - p.y;
+          dragStartSX = e.clientX;
+          dragStartSY = e.clientY;
           e.preventDefault();
           return;
         }
+      }
+      if (state._graphSelectedNode) {
+        state._graphSelectedNode = null;
+        state._graphRelatedNodes = null;
+        drawRelationsGraph();
       }
       panning = true;
       panStartX = e.clientX;
@@ -426,6 +465,15 @@ function _setupCanvasInteraction() {
     const world = _screenToWorld(sx, sy);
     const positions = _getGraphPositions();
 
+    if (dragPending && !draggingNode) {
+      const dist = Math.sqrt((e.clientX - dragStartSX) ** 2 + (e.clientY - dragStartSY) ** 2);
+      if (dist > 3) {
+        draggingNode = dragPending;
+        dragPending = null;
+        canvas.style.cursor = 'grabbing';
+      }
+    }
+
     if (draggingNode) {
       if (positions[draggingNode]) {
         positions[draggingNode].x = world.x - dragOffsetX;
@@ -443,23 +491,52 @@ function _setupCanvasInteraction() {
       return;
     }
 
-    let onNode = false;
+    let hoveredId = null;
     for (const id in positions) {
       const p = positions[id];
       const dx = world.x - p.x, dy = world.y - p.y;
-      if (dx*dx + dy*dy <= 676) { onNode = true; break; }
+      if (dx*dx + dy*dy <= 784) { hoveredId = id; break; }
     }
-    canvas.style.cursor = onNode ? 'grab' : 'default';
+    if (hoveredId !== state._graphHoveredNode) {
+      state._graphHoveredNode = hoveredId;
+      drawRelationsGraph();
+    }
+    canvas.style.cursor = hoveredId ? 'pointer' : 'default';
   };
 
   canvas.onmouseup = (e) => {
+    if (dragPending && !draggingNode) {
+      const id = dragPending;
+      dragPending = null;
+      if (state._graphSelectedNode === id) {
+        state._graphSelectedNode = null;
+        state._graphRelatedNodes = null;
+      } else {
+        state._graphSelectedNode = id;
+        const related = new Set();
+        related.add(id);
+        const selectedSubjects = _getSelectedGraphSubjects();
+        const allEntities = _getAllGraphEntities();
+        const entities = selectedSubjects.map(sid => { const [tk,id2] = sid.split(':'); return allEntities.find(en=>en.id===id2 && en.typeKey===tk); }).filter(Boolean);
+        const idList = entities.map(en=>en.id);
+        const allConns = _collectAllConnections(idList);
+        allConns.forEach(c => {
+          if (c.from === id) related.add(c.to);
+          if (c.to === id) related.add(c.from);
+        });
+        state._graphRelatedNodes = related;
+      }
+      drawRelationsGraph();
+    }
     if (draggingNode) { draggingNode = null; canvas.style.cursor = 'default'; }
+    dragPending = null;
     if (panning) { panning = false; canvas.style.cursor = 'default'; }
   };
 
   canvas.onmouseleave = () => {
     if (draggingNode) { draggingNode = null; }
     if (panning) { panning = false; }
+    if (state._graphHoveredNode) { state._graphHoveredNode = null; drawRelationsGraph(); }
     canvas.style.cursor = 'default';
   };
 
@@ -482,23 +559,33 @@ function _drawArrow(ctx, fromX, fromY, toX, toY, color, label, offset) {
   const nx = dx/len, ny = dy/len;
   const px = -ny, py = nx;
   const off = offset || 0;
-  const sx = fromX + nx*22 + px*off, sy = fromY + ny*22 + py*off;
-  const ex = toX - nx*22 + px*off, ey = toY - ny*22 + py*off;
-  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey);
-  ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.7; ctx.stroke(); ctx.globalAlpha = 1;
-  const headLen = 8;
-  const angle = Math.atan2(ey-sy, ex-sx);
+  const sx = fromX + nx*28 + px*off, sy = fromY + ny*28 + py*off;
+  const ex = toX - nx*28 + px*off, ey = toY - ny*28 + py*off;
+  const mx = (sx+ex)/2 + px*off*0.5, my = (sy+ey)/2 + py*off*0.5;
+  const ctrlX = mx + px*len*0.12, ctrlY = my + py*len*0.12;
+  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.quadraticCurveTo(ctrlX, ctrlY, ex, ey);
+  ctx.strokeStyle = color; ctx.lineWidth = 1.8; ctx.globalAlpha = 0.45; ctx.stroke(); ctx.globalAlpha = 1;
+  const headLen = 7;
+  const t = 0.95;
+  const tangentX = 2*(1-t)*(ctrlX-sx) + 2*t*(ex-ctrlX);
+  const tangentY = 2*(1-t)*(ctrlY-sy) + 2*t*(ey-ctrlY);
+  const angle = Math.atan2(tangentY, tangentX);
+  const tipX = sx*(1-t)*(1-t) + 2*ctrlX*t*(1-t) + ex*t*t;
+  const tipY = sy*(1-t)*(1-t) + 2*ctrlY*t*(1-t) + ey*t*t;
   ctx.beginPath();
-  ctx.moveTo(ex, ey);
-  ctx.lineTo(ex - headLen*Math.cos(angle-Math.PI/6), ey - headLen*Math.sin(angle-Math.PI/6));
-  ctx.moveTo(ex, ey);
-  ctx.lineTo(ex - headLen*Math.cos(angle+Math.PI/6), ey - headLen*Math.sin(angle+Math.PI/6));
-  ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.stroke();
-  if (label) {
-    const mx = (sx+ex)/2 + px*10, my = (sy+ey)/2 + py*10;
-    ctx.fillStyle = color; ctx.font = '9px "Microsoft YaHei",sans-serif'; ctx.textAlign = 'center';
+  ctx.moveTo(tipX, tipY);
+  ctx.lineTo(tipX - headLen*Math.cos(angle-Math.PI/6), tipY - headLen*Math.sin(angle-Math.PI/6));
+  ctx.moveTo(tipX, tipY);
+  ctx.lineTo(tipX - headLen*Math.cos(angle+Math.PI/6), tipY - headLen*Math.sin(angle+Math.PI/6));
+  ctx.strokeStyle = color; ctx.lineWidth = 1.8; ctx.globalAlpha = 0.55; ctx.stroke(); ctx.globalAlpha = 1;
+  if (label && state._graphSelectedNode) {
+    const labelX = sx*0.25 + ctrlX*0.5 + ex*0.25 + px*8;
+    const labelY = sy*0.25 + ctrlY*0.5 + ey*0.25 + py*8;
+    ctx.globalAlpha = 0.85;
+    ctx.fillStyle = '#57534e'; ctx.font = '9px "Microsoft YaHei",sans-serif'; ctx.textAlign = 'center';
     const displayLabel = label.length > 6 ? label.slice(0,6)+'…' : label;
-    ctx.fillText(displayLabel, mx, my);
+    ctx.fillText(displayLabel, labelX, labelY);
+    ctx.globalAlpha = 1;
   }
 }
 
@@ -508,15 +595,20 @@ function _drawLine(ctx, fromX, fromY, toX, toY, color, label) {
   if (len < 1) return;
   const nx = dx/len, ny = dy/len;
   const px = -ny, py = nx;
-  const sx = fromX + nx*22, sy = fromY + ny*22;
-  const ex = toX - nx*22, ey = toY - ny*22;
-  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.lineTo(ex, ey);
-  ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.globalAlpha = 0.6; ctx.stroke(); ctx.globalAlpha = 1;
-  if (label) {
-    const mx = (sx+ex)/2, my = (sy+ey)/2 - 8;
+  const sx = fromX + nx*28, sy = fromY + ny*28;
+  const ex = toX - nx*28, ey = toY - ny*28;
+  const mx = (sx+ex)/2, my = (sy+ey)/2;
+  const ctrlX = mx + px*len*0.08, ctrlY = my + py*len*0.08;
+  ctx.beginPath(); ctx.moveTo(sx, sy); ctx.quadraticCurveTo(ctrlX, ctrlY, ex, ey);
+  ctx.strokeStyle = color; ctx.lineWidth = 1.8; ctx.globalAlpha = 0.4; ctx.stroke(); ctx.globalAlpha = 1;
+  if (label && state._graphSelectedNode) {
+    const labelX = sx*0.25 + ctrlX*0.5 + ex*0.25 + px*8;
+    const labelY = sy*0.25 + ctrlY*0.5 + ey*0.25 + py*8 - 4;
+    ctx.globalAlpha = 0.85;
     ctx.fillStyle = '#57534e'; ctx.font = '10px "Microsoft YaHei",sans-serif'; ctx.textAlign = 'center';
     const displayLabel = label.length > 8 ? label.slice(0,8)+'…' : label;
-    ctx.fillText(displayLabel, mx, my);
+    ctx.fillText(displayLabel, labelX, labelY);
+    ctx.globalAlpha = 1;
   }
 }
 
@@ -543,7 +635,7 @@ async function drawRelationsGraph() {
   const vp = _getGraphViewport();
 
   ctx.clearRect(0,0,w,h);
-  ctx.fillStyle = '#f7f6f3'; ctx.fillRect(0,0,w,h);
+  ctx.fillStyle = '#f7f8fa'; ctx.fillRect(0,0,w,h);
 
   ctx.save();
   ctx.translate(vp.panX, vp.panY);
@@ -551,9 +643,7 @@ async function drawRelationsGraph() {
 
   const selectedSubjects = _getSelectedGraphSubjects();
   const allEntities = _getAllGraphEntities();
-  const entities = selectedSubjects.length > 0
-    ? selectedSubjects.map(sid => { const [tk,id] = sid.split(':'); return allEntities.find(e=>e.id===id && e.typeKey===tk); }).filter(Boolean)
-    : allEntities;
+  const entities = selectedSubjects.map(sid => { const [tk,id] = sid.split(':'); return allEntities.find(e=>e.id===id && e.typeKey===tk); }).filter(Boolean);
   if (entities.length === 0) {
     ctx.restore();
     ctx.fillStyle='#777169'; ctx.font='14px "Microsoft YaHei",sans-serif'; ctx.textAlign='center'; ctx.fillText('请勾选主体或添加词条',w/2,h/2);
@@ -564,12 +654,12 @@ async function drawRelationsGraph() {
   const edges = _buildEdgeMap(allConns);
   const positions = _getGraphPositions();
   const cx=w/2, cy=h/2, radius=Math.min(w,h)/2-50;
-  const typeColors = {character:'#3b82f6',faction:'#ef4444',location:'#22c55e',item:'#f59e0b',event:'#8b5cf6'};
+  const typeColors = {character:'#7c9cb5',faction:'#c48b7f',location:'#7fb89a',item:'#c4a96b',event:'#a08bc4'};
   const edgeColors = {
-    'character|faction':'#ef4444', 'character|location':'#22c55e', 'character|item':'#f59e0b',
-    'character|event':'#8b5cf6', 'faction|location':'#a855f7', 'faction|faction':'#dc2626',
-    'character|character':'#3b82f6', 'location|event':'#06b6d4', 'item|location':'#84cc16',
-    'faction|event':'#f97316', 'item|event':'#eab308'
+    'character|faction':'#c48b7f', 'character|location':'#7fb89a', 'character|item':'#c4a96b',
+    'character|event':'#a08bc4', 'faction|location':'#b49cd0', 'faction|faction':'#d4918a',
+    'character|character':'#7c9cb5', 'location|event':'#7bb5c4', 'item|location':'#8db87a',
+    'faction|event':'#c9a07a', 'item|event':'#c4b67a'
   };
   const currentIds = new Set(entities.map(e=>e.id));
   Object.keys(positions).forEach(id => { if (!currentIds.has(id)) delete positions[id]; });
@@ -583,9 +673,11 @@ async function drawRelationsGraph() {
     const posA = positions[edge.a], posB = positions[edge.b];
     if (!posA || !posB) return;
     const typeKey = [edge.aType, edge.bType].sort().join('|');
-    const color = edgeColors[typeKey] || '#d69e2e';
+    const color = edgeColors[typeKey] || '#c4b89a';
     const hasA2B = edge.aToB && edge.aToB.trim();
     const hasB2A = edge.bToA && edge.bToA.trim();
+    const edgeDimmed = state._graphHoveredNode && (!state._graphRelatedNodes || !state._graphRelatedNodes.has(edge.a) || !state._graphRelatedNodes.has(edge.b));
+    if (edgeDimmed) ctx.globalAlpha = 0.12;
     if (hasA2B && hasB2A) {
       if (edge.aToB.trim() === edge.bToA.trim()) {
         _drawLine(ctx, posA.x, posA.y, posB.x, posB.y, color, edge.aToB.trim());
@@ -600,16 +692,36 @@ async function drawRelationsGraph() {
     } else {
       _drawLine(ctx, posA.x, posA.y, posB.x, posB.y, color, '');
     }
+    if (edgeDimmed) ctx.globalAlpha = 1;
   });
   const avatarPromises = entities.map(e => _loadAvatarForGraph(e.typeKey, e.id));
   const avatarImages = await Promise.all(avatarPromises);
   entities.forEach((e, idx) => {
     const pos = positions[e.id]; if (!pos) return;
-    const color = typeColors[e.typeKey] || '#000000';
+    const color = typeColors[e.typeKey] || '#888888';
     const avatarImg = avatarImages[idx];
+    const isHovered = state._graphHoveredNode === e.id;
+    const isSelected = state._graphSelectedNode === e.id;
+    const isRelated = state._graphSelectedNode && state._graphRelatedNodes && state._graphRelatedNodes.has(e.id);
+    const dimmed = state._graphSelectedNode && !isSelected && !isRelated;
+    const nodeAlpha = dimmed ? 0.25 : 1;
     ctx.save();
-    ctx.beginPath(); ctx.arc(pos.x, pos.y, 20, 0, Math.PI*2);
-    ctx.fillStyle = '#ffffff'; ctx.fill(); ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.stroke();
+    ctx.globalAlpha = nodeAlpha;
+    const cardW = 56, cardH = 56, cardR = 14;
+    const cardX = pos.x - cardW/2, cardY = pos.y - cardH/2;
+    ctx.shadowColor = 'rgba(0,0,0,0.06)';
+    ctx.shadowBlur = 8;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 2;
+    ctx.beginPath();
+    ctx.roundRect(cardX, cardY, cardW, cardH, cardR);
+    ctx.fillStyle = '#ffffff'; ctx.fill();
+    ctx.shadowColor = 'transparent';
+    ctx.strokeStyle = isSelected ? '#b4a0d4' : (isHovered ? '#c4bdd4' : '#e2e5ea');
+    ctx.lineWidth = isSelected ? 2 : (isHovered ? 1.5 : 1);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.roundRect(cardX, cardY, cardW, cardH, cardR);
     ctx.clip();
     if (avatarImg) {
       const size = 40;
@@ -619,23 +731,24 @@ async function drawRelationsGraph() {
       else { dw = size; dh = size / aspect; dx = pos.x - dw/2; dy = pos.y - dh/2; }
       ctx.drawImage(avatarImg, dx, dy, dw, dh);
     } else {
-      ctx.fillStyle = color; ctx.font = 'bold 11px "Microsoft YaHei",sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(e.icon||'●', pos.x, pos.y+4);
+      ctx.fillStyle = color; ctx.font = 'bold 14px "Microsoft YaHei",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(e.icon||'●', pos.x, pos.y);
     }
     ctx.restore();
-    ctx.beginPath(); ctx.arc(pos.x, pos.y, 20, 0, Math.PI*2);
-    ctx.strokeStyle = color; ctx.lineWidth = 2.5; ctx.stroke();
-    ctx.fillStyle = '#1c1917'; ctx.font = '11px "Microsoft YaHei",sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(e.name, pos.x, pos.y+34);
+    ctx.save();
+    ctx.globalAlpha = nodeAlpha;
+    ctx.fillStyle = '#3d3929'; ctx.font = '11px "Microsoft YaHei",sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillText(e.name, pos.x, pos.y + cardH/2 + 4);
+    ctx.restore();
   });
   ctx.restore();
 
   const legend = _getGraphEntityTypes().filter(t => entities.some(e=>e.typeKey===t.key));
   if (legend.length > 1) {
     const legendH = legend.length * 18 + 8;
-    ctx.fillStyle = 'rgba(247,246,243,0.85)';
+    ctx.fillStyle = 'rgba(247,248,250,0.9)';
     ctx.fillRect(4, 4, 90, legendH);
-    ctx.strokeStyle = 'rgba(0,0,0,0.08)';
+    ctx.strokeStyle = 'rgba(0,0,0,0.06)';
     ctx.lineWidth = 1;
     ctx.strokeRect(4, 4, 90, legendH);
     legend.forEach((t,i) => {

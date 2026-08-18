@@ -60,8 +60,7 @@ function renderEvents() {
   ];
   return `<div class="char-layout">
     <div class="char-list-panel" style="min-width:260px">
-      <div class="flex-between mb-8"><h3>⚡ 事件列表</h3><div class="flex-gap"><button class="btn btn-ai btn-sm" onclick="aiGenTimeline()">🤖 AI 生成</button><button class="btn btn-sm btn-primary" onclick="addTimelineEvent()">+ 新建</button></div></div>
-      <div id="ai-timeline-result"></div>
+      <div class="flex-between mb-8"><h3>⚡ 事件列表</h3><div class="flex-gap"><button class="btn btn-sm btn-primary" onclick="addTimelineEvent()">+ 新建</button></div></div>
       ${eventTypes.length > 0 ? `<div style="margin-bottom:8px;display:flex;align-items:center;gap:6px;flex-wrap:wrap"><span style="font-size:12px;color:var(--warm-gray)">类型：</span><button class="btn btn-xs ${filterType?'btn-outline':'btn-primary'}" onclick="state.eventFilterType='';renderTabContent()">全部</button>${eventTypes.map(t=>`<button class="btn btn-xs ${filterType===t?'btn-primary':'btn-outline'}" onclick="state.eventFilterType='${esc(t)}';renderTabContent()">${esc(t)}</button>`).join('')}</div>` : ''}
       ${renderSearchBox('eventSearch')}
       ${renderRelFilter('eventRelFilter', eventRelDefs)}

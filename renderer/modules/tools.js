@@ -1,79 +1,83 @@
 // ============================================================
-// 世界生成器 — 工具 (地图/资源库存/备份)
+// 世界生成器 — 工具 (资源库存/备份)
 // 依赖: core/state.js, core/utils.js, core/modal.js, core/properties.js
 // ============================================================
 
-// --- WORLD MAP ---
-function renderMap() {
-  return `<div class="card"><h3>🗺️ 世界地图</h3><p class="text-sm text-muted mb-16">在地图上可视化地点和势力范围</p>
-    <div class="map-container"><canvas id="world-map-canvas" width="800" height="500"></canvas></div>
-    <div class="form-group mt-16"><label>地图备注</label><textarea id="map-notes" rows="3" onchange="updateMapNotes(this.value)" style="width:100%;padding:8px 12px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-sm);font-size:14px;font-family:var(--font-body);resize:vertical">${esc((state.data.mapNotes||''))}</textarea></div></div>`;
-}
-
-function setupMap() { drawWorldMap(); }
-
-function drawWorldMap() {
-  const canvas = $('#world-map-canvas');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  const w = canvas.width, h = canvas.height;
-  ctx.clearRect(0,0,w,h);
-  ctx.fillStyle = '#f7f6f3'; ctx.fillRect(0,0,w,h);
-  ctx.fillStyle = '#000000'; ctx.font = '16px "Microsoft YaHei",sans-serif'; ctx.textAlign = 'center'; ctx.fillText('世界地图预览',w/2,h/2-30);
-  ctx.font = '13px "Microsoft YaHei",sans-serif'; ctx.fillStyle = '#777169'; ctx.fillText('地点和势力范围将在此显示',w/2,h/2+10);
-  const locs = state.data.locations||[];
-  if (locs.length>0) {
-    const margin = 60;
-    locs.forEach((l,i) => {
-      const x = margin + Math.random()*(w-2*margin);
-      const y = margin + Math.random()*(h-2*margin);
-      ctx.beginPath(); ctx.arc(x,y,8,0,Math.PI*2);
-      ctx.fillStyle = '#000000'; ctx.fill();
-      ctx.fillStyle = '#000000'; ctx.font = '12px "Microsoft YaHei",sans-serif'; ctx.textAlign = 'center'; ctx.fillText(l.name.slice(0,5),x,y+18);
-    });
-  }
-}
-
-function updateMapNotes(value) { state.data.mapNotes = value; autoSave(); }
-
 // --- EMOJI LIBRARY ---
+let _emojiLibDragData = null;
+let _emojiLibActiveInput = null;
+
 function _getEmojiLib() {
   if (!state.data.emojiLib) state.data.emojiLib = [];
   return state.data.emojiLib;
 }
 
+function _syncCatEmojiOrder(cat) {
+  if (!state.data.emojiCatOrders) state.data.emojiCatOrders = {};
+  const order = state.data.emojiCatOrders[cat] || [];
+  const presets = new Set(EMOJI_CATEGORIES_LIB[cat] || []);
+  const customs = new Set(_getEmojiLib().filter(em => em.category === cat).map(em => em.emoji));
+  const allValid = new Set([...presets, ...customs]);
+  const filtered = order.filter(e => allValid.has(e));
+  for (const e of allValid) {
+    if (!filtered.includes(e)) filtered.push(e);
+  }
+  state.data.emojiCatOrders[cat] = filtered;
+  return filtered;
+}
+
 function renderEmojiLibSection() {
   const lib = _getEmojiLib();
+  const seen = new Set();
+  const unique = lib.filter(em => { if (seen.has(em.emoji)) return false; seen.add(em.emoji); return true; });
   return `<div style="margin-bottom:12px;padding:10px;background:var(--bg-alt);border-radius:var(--radius-sm)">
     <div class="flex-between mb-4"><span style="font-size:12px;font-weight:500">😀 自定义 Emoji 库</span><button class="btn btn-xs btn-outline" onclick="openEmojiLibManager()">⚙️ 管理</button></div>
-    ${lib.length === 0 ? '<div style="font-size:11px;color:var(--muted)">暂无自定义 emoji，点击管理添加</div>' :
-      `<div style="display:flex;flex-wrap:wrap;gap:4px">${lib.map((em,i) =>
+    ${unique.length === 0 ? '<div style="font-size:11px;color:var(--muted)">暂无自定义 emoji，点击管理添加</div>' :
+      `<div style="display:flex;flex-wrap:wrap;gap:4px">${unique.map(em =>
         `<span style="display:inline-flex;align-items:center;gap:2px;padding:2px 6px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-xs);font-size:16px;cursor:default" title="${esc(em.name||'')}">${esc(em.emoji)}</span>`
       ).join('')}</div>`}
   </div>`;
 }
 
+function _renderDraggableEmoji(emojiStr, cat, posIdx) {
+  const lib = _getEmojiLib();
+  const customEntry = lib.find(em => em.emoji === emojiStr && em.category === cat);
+  const isCustom = !!customEntry;
+  const libIdx = isCustom ? lib.indexOf(customEntry) : -1;
+  const deleteBtnHtml = isCustom
+    ? `<button style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;border-radius:50%;background:var(--danger);color:var(--white);border:none;font-size:8px;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1" class="emoji-lib-del" onclick="event.stopPropagation();_emojiLibManagerRemove(${libIdx})">×</button>`
+    : '';
+  const clickAttr = !isCustom ? `onclick="_emojiLibManagerAdd('${emojiStr}')"` : '';
+  const ctxAttr = isCustom ? `oncontextmenu="event.preventDefault();_emojiLibContextMenu(event,${libIdx})"` : 'oncontextmenu="event.preventDefault()"';
+  return `<div class="emoji-lib-item" data-emoji-str="${esc(emojiStr)}" data-emoji-cat="${esc(cat)}" data-emoji-pos="${posIdx}" data-emoji-custom="${isCustom?'1':'0'}" draggable="true" ${clickAttr} ${ctxAttr} style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;font-size:20px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-xs);cursor:grab;transition:all var(--transition)">${esc(emojiStr)}${deleteBtnHtml}</div>`;
+}
+
 function openEmojiLibManager() {
   const lib = _getEmojiLib();
+  lib.forEach(em => { if (!em.category) em.category = '我的 Emoji'; });
   const overlay = $('#modal-overlay');
   const modal = $('#modal-box');
-  const customLibHtml = lib.length > 0 ? `<div class="emoji-cat"><div class="emoji-cat-title">⭐ 我的 Emoji</div><div class="emoji-grid" id="emoji-lib-grid">${lib.map((em,i) =>
-    `<div class="emoji-lib-item" data-emoji-idx="${i}" draggable="true" oncontextmenu="event.preventDefault();_emojiLibContextMenu(event,${i})" style="position:relative;display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;font-size:20px;background:var(--white);border:1px solid var(--border);border-radius:var(--radius-xs);cursor:grab;transition:all var(--transition)">${esc(em.emoji)}<button style="position:absolute;top:-4px;right:-4px;width:14px;height:14px;border-radius:50%;background:var(--danger);color:var(--white);border:none;font-size:8px;cursor:pointer;display:none;align-items:center;justify-content:center;line-height:1" class="emoji-lib-del" onclick="event.stopPropagation();_emojiLibManagerRemove(${i})">×</button></div>`
-  ).join('')}<button class="emoji-btn" style="border-style:dashed;color:var(--muted)" onclick="_emojiLibManagerAddFromPanel()">＋</button></div></div>` : `<div class="emoji-cat"><div class="emoji-cat-title">⭐ 我的 Emoji</div><div class="emoji-grid" id="emoji-lib-grid"><button class="emoji-btn" style="border-style:dashed;color:var(--muted)" onclick="_emojiLibManagerAddFromPanel()">＋</button></div></div>`;
-  const categories = Object.entries(EMOJI_CATEGORIES_LIB).map(([cat, emojis]) => {
-    return `<div class="emoji-cat"><div class="emoji-cat-title">${esc(cat)}</div><div class="emoji-grid">${emojis.map(e => `<button class="emoji-btn" onclick="_emojiLibManagerAdd('${e}')">${e}</button>`).join('')}<button class="emoji-btn" style="border-style:dashed;color:var(--muted)" onclick="_emojiLibManagerAddFromPanel('${cat}')">＋</button></div></div>`;
+  const myOrder = _syncCatEmojiOrder('我的 Emoji');
+  const myItems = myOrder.map((e, i) => _renderDraggableEmoji(e, '我的 Emoji', i)).join('');
+  const myEmojiHtml = `<div class="emoji-cat"><div class="emoji-cat-title">⭐ 我的 Emoji</div><div class="emoji-grid" data-cat="我的 Emoji">${myItems}<span class="emoji-add-wrapper"><button class="emoji-btn emoji-add-btn" style="border-style:dashed;color:var(--muted)" onclick="_emojiLibShowAddInput('我的 Emoji',this)">＋</button></span></div></div>`;
+  const categories = Object.entries(EMOJI_CATEGORIES_LIB).map(([cat]) => {
+    const order = _syncCatEmojiOrder(cat);
+    const items = order.map((e, i) => _renderDraggableEmoji(e, cat, i)).join('');
+    return `<div class="emoji-cat"><div class="emoji-cat-title">${esc(cat)}</div><div class="emoji-grid" data-cat="${esc(cat)}">${items}<span class="emoji-add-wrapper"><button class="emoji-btn emoji-add-btn" style="border-style:dashed;color:var(--muted)" onclick="_emojiLibShowAddInput('${esc(cat)}',this)">＋</button></span></div></div>`;
   }).join('');
   modal.innerHTML = `
     <h3>😀 管理 Emoji 库</h3>
-    <div class="form-group"><label>自定义输入</label><div style="display:flex;gap:6px"><input id="emoji-lib-custom-input" placeholder="输入emoji或文字" style="flex:1;padding:8px 12px;font-size:14px"><button class="btn btn-sm btn-primary" onclick="_emojiLibManagerAddCustom()">添加</button></div></div>
-    <div style="max-height:350px;overflow-y:auto">${customLibHtml}${categories}</div>
+    <div style="max-height:400px;overflow-y:auto">${myEmojiHtml}${categories}</div>
     <div class="modal-actions">
+      <button class="btn btn-outline" onclick="_emojiLibResetPresets()">🔄 重置预设</button>
+      <div style="flex:1"></div>
       <button class="btn btn-outline" onclick="_emojiLibManagerCancel()">取消</button>
       <button class="btn btn-primary" onclick="_emojiLibManagerSave()">💾 保存</button>
     </div>`;
   overlay.classList.remove('hidden');
   overlay.onclick = (e) => { if (e.target === overlay) _emojiLibManagerCancel(); };
   if (!state._emojiLibBackup) state._emojiLibBackup = JSON.parse(JSON.stringify(lib));
+  if (!state._emojiCatOrdersBackup) state._emojiCatOrdersBackup = JSON.parse(JSON.stringify(state.data.emojiCatOrders || {}));
   _setupEmojiLibDrag();
 }
 
@@ -91,75 +95,143 @@ const EMOJI_CATEGORIES_LIB = {
 };
 
 function _setupEmojiLibDrag() {
-  const grid = document.getElementById('emoji-lib-grid');
-  if (!grid) return;
-  grid.querySelectorAll('.emoji-lib-item').forEach(item => {
-    item.addEventListener('dragstart', function(e) {
-      e.dataTransfer.setData('text/plain', this.dataset.emojiIdx);
-      this.style.opacity = '0.4';
-    });
-    item.addEventListener('dragend', function() {
-      this.style.opacity = '1';
-      grid.querySelectorAll('.emoji-lib-item').forEach(el => el.style.borderColor = 'var(--border)');
-    });
-    item.addEventListener('dragover', function(e) {
-      e.preventDefault();
-      this.style.borderColor = 'var(--accent)';
-    });
-    item.addEventListener('dragleave', function() {
-      this.style.borderColor = 'var(--border)';
-    });
-    item.addEventListener('drop', function(e) {
-      e.preventDefault();
-      this.style.borderColor = 'var(--border)';
-      const fromIdx = parseInt(e.dataTransfer.getData('text/plain'));
-      const toIdx = parseInt(this.dataset.emojiIdx);
-      if (fromIdx === toIdx || isNaN(fromIdx) || isNaN(toIdx)) return;
-      const lib = _getEmojiLib();
-      const [moved] = lib.splice(fromIdx, 1);
-      lib.splice(toIdx, 0, moved);
-      openEmojiLibManager();
-    });
-    item.addEventListener('mouseenter', function() {
-      const del = this.querySelector('.emoji-lib-del');
-      if (del) del.style.display = 'flex';
-    });
-    item.addEventListener('mouseleave', function() {
-      const del = this.querySelector('.emoji-lib-del');
-      if (del) del.style.display = 'none';
+  document.querySelectorAll('.emoji-grid[data-cat]').forEach(grid => {
+    grid.querySelectorAll('.emoji-lib-item').forEach(item => {
+      item.addEventListener('dragstart', function(e) {
+        _emojiLibDragData = { str: this.dataset.emojiStr, cat: this.dataset.emojiCat, pos: parseInt(this.dataset.emojiPos) };
+        e.dataTransfer.setData('text/plain', this.dataset.emojiStr);
+        this.style.opacity = '0.4';
+      });
+      item.addEventListener('dragend', function() {
+        this.style.opacity = '1';
+        _emojiLibDragData = null;
+        grid.querySelectorAll('.emoji-lib-item').forEach(el => el.style.borderColor = 'var(--border)');
+      });
+      item.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        if (_emojiLibDragData && _emojiLibDragData.cat === this.dataset.emojiCat) {
+          this.style.borderColor = 'var(--accent)';
+        }
+      });
+      item.addEventListener('dragleave', function() {
+        this.style.borderColor = 'var(--border)';
+      });
+      item.addEventListener('drop', function(e) {
+        e.preventDefault();
+        this.style.borderColor = 'var(--border)';
+        if (!_emojiLibDragData || _emojiLibDragData.cat !== this.dataset.emojiCat) return;
+        const cat = _emojiLibDragData.cat;
+        const fromPos = _emojiLibDragData.pos;
+        const toPos = parseInt(this.dataset.emojiPos);
+        if (fromPos === toPos || isNaN(fromPos) || isNaN(toPos)) return;
+        const order = _syncCatEmojiOrder(cat);
+        const [moved] = order.splice(fromPos, 1);
+        order.splice(toPos, 0, moved);
+        state.data.emojiCatOrders[cat] = order;
+        openEmojiLibManager();
+      });
+      if (item.dataset.emojiCustom === '1') {
+        item.addEventListener('mouseenter', function() {
+          const del = this.querySelector('.emoji-lib-del');
+          if (del) del.style.display = 'flex';
+        });
+        item.addEventListener('mouseleave', function() {
+          const del = this.querySelector('.emoji-lib-del');
+          if (del) del.style.display = 'none';
+        });
+      }
     });
   });
 }
 
 function _emojiLibManagerRemove(idx) {
   const lib = _getEmojiLib();
+  const removed = lib[idx];
+  if (removed && state.data.emojiCatOrders && state.data.emojiCatOrders[removed.category]) {
+    state.data.emojiCatOrders[removed.category] = state.data.emojiCatOrders[removed.category].filter(e => e !== removed.emoji);
+  }
   lib.splice(idx, 1);
   openEmojiLibManager();
 }
 
 function _emojiLibManagerAdd(emoji) {
   const lib = _getEmojiLib();
-  if (!lib.find(em => em.emoji === emoji)) {
-    lib.push({ emoji, name: '' });
+  if (!lib.find(em => em.emoji === emoji && em.category === '我的 Emoji')) {
+    lib.push({ emoji, name: '', category: '我的 Emoji' });
+    const myOrder = _syncCatEmojiOrder('我的 Emoji');
+    if (!myOrder.includes(emoji)) myOrder.push(emoji);
+    state.data.emojiCatOrders['我的 Emoji'] = myOrder;
   }
   openEmojiLibManager();
 }
 
-function _emojiLibManagerAddCustom() {
-  const input = document.getElementById('emoji-lib-custom-input');
-  if (!input || !input.value.trim()) { showToast('请输入 Emoji'); return; }
-  const emoji = input.value.trim();
+function _emojiLibCloseActiveInput() {
+  if (!_emojiLibActiveInput) return;
+  const ai = _emojiLibActiveInput;
+  ai.submitted = true;
+  if (ai.inputWrapperEl && ai.wrapperEl && ai.wrapperEl.contains(ai.inputWrapperEl)) {
+    ai.wrapperEl.removeChild(ai.inputWrapperEl);
+  }
+  if (ai.btnEl) ai.btnEl.style.display = '';
+  _emojiLibActiveInput = null;
+}
+
+function _emojiLibShowAddInput(category, btn) {
+  _emojiLibCloseActiveInput();
+  const wrapper = btn.parentElement;
+  btn.style.display = 'none';
+  const inputWrapper = document.createElement('div');
+  inputWrapper.className = 'emoji-inline-input-wrapper';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.placeholder = '请输入emoji';
+  input.className = 'emoji-inline-input';
+  inputWrapper.appendChild(input);
+  wrapper.appendChild(inputWrapper);
+  input.focus();
+  const ctx = { submitted: false, wrapperEl: wrapper, btnEl: btn, inputWrapperEl: inputWrapper };
+  const submitFn = () => {
+    if (ctx.submitted) return;
+    ctx.submitted = true;
+    _emojiLibActiveInput = null;
+    const val = input.value.trim();
+    if (val) {
+      const lib = _getEmojiLib();
+      if (!lib.find(em => em.emoji === val && em.category === category)) {
+        lib.push({ emoji: val, name: '', category });
+      }
+      const order = _syncCatEmojiOrder(category);
+      if (!order.includes(val)) order.push(val);
+      state.data.emojiCatOrders[category] = order;
+    }
+    openEmojiLibManager();
+  };
+  const closeFn = () => {
+    if (ctx.submitted) return;
+    ctx.submitted = true;
+    _emojiLibActiveInput = null;
+    if (wrapper.contains(inputWrapper)) wrapper.removeChild(inputWrapper);
+    btn.style.display = '';
+  };
+  _emojiLibActiveInput = ctx;
+  input.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); submitFn(); }
+    else if (e.key === 'Escape') closeFn();
+  });
+  input.addEventListener('blur', () => { setTimeout(() => { if (!ctx.submitted) submitFn(); }, 120); });
+}
+
+function _emojiLibResetPresets() {
   const lib = _getEmojiLib();
-  if (!lib.find(em => em.emoji === emoji)) {
-    lib.push({ emoji, name: '' });
+  lib.forEach(em => { if (!em.category) em.category = '我的 Emoji'; });
+  if (!state.data.emojiCatOrders) state.data.emojiCatOrders = {};
+  for (const [cat, presets] of Object.entries(EMOJI_CATEGORIES_LIB)) {
+    const customs = lib.filter(em => em.category === cat).map(em => em.emoji);
+    state.data.emojiCatOrders[cat] = [...presets, ...customs];
   }
+  const myCustoms = lib.filter(em => em.category === '我的 Emoji').map(em => em.emoji);
+  state.data.emojiCatOrders['我的 Emoji'] = [...myCustoms];
   openEmojiLibManager();
-}
-
-function _emojiLibManagerAddFromPanel(catName) {
-  const input = document.getElementById('emoji-lib-custom-input');
-  if (input) input.focus();
-  showToast('请在上方输入框输入自定义 Emoji');
 }
 
 function _emojiLibContextMenu(e, idx) {
@@ -179,6 +251,8 @@ function _emojiLibContextMenu(e, idx) {
 }
 
 function _emojiLibManagerSave() {
+  delete state._emojiLibBackup;
+  delete state._emojiCatOrdersBackup;
   autoSave();
   closeModal();
   renderTabContent();
@@ -189,6 +263,10 @@ function _emojiLibManagerCancel() {
     state.data.emojiLib = state._emojiLibBackup;
     delete state._emojiLibBackup;
   }
+  if (state._emojiCatOrdersBackup) {
+    state.data.emojiCatOrders = state._emojiCatOrdersBackup;
+    delete state._emojiCatOrdersBackup;
+  }
   closeModal();
   renderTabContent();
 }
@@ -196,7 +274,9 @@ function _emojiLibManagerCancel() {
 function getEmojiPickerHtml(targetInputId) {
   const lib = _getEmojiLib();
   if (lib.length === 0) return '';
-  return `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:2px">${lib.map(em =>
+  const seen = new Set();
+  const unique = lib.filter(em => { if (seen.has(em.emoji)) return false; seen.add(em.emoji); return true; });
+  return `<div style="margin-top:4px;display:flex;flex-wrap:wrap;gap:2px">${unique.map(em =>
     `<span style="cursor:pointer;font-size:16px;padding:2px;border-radius:var(--radius-xs);border:1px solid transparent" onmouseover="this.style.background='var(--bg-alt)';this.style.borderColor='var(--border)'" onmouseout="this.style.background='';this.style.borderColor='transparent'" onclick="document.getElementById('${targetInputId}').value='${esc(em.emoji)}';document.getElementById('${targetInputId}').dispatchEvent(new Event('input'))" title="${esc(em.name||em.emoji)}">${esc(em.emoji)}</span>`
   ).join('')}</div>`;
 }
@@ -288,12 +368,54 @@ function renderResourceDetail(r) {
       </div>
     </div>
     ${r.category ? `<div style="margin-bottom:8px"><span class="wiki-badge race">${esc(r.category)}</span></div>` : ''}
+    ${r.category === '世界地图' && r.mapData ? _renderMapResourcePreview(r) : ''}
     ${imageHtml}
     ${graphHtml}
     ${linkedHtml}
     ${r.note ? `<div class="wiki-section"><div class="wiki-section-title">备注</div><div class="wiki-value">${esc(r.note)}</div></div>` : ''}
     ${customPropHtml ? `<div class="wiki-section">${customPropHtml}</div>` : ''}
   </div>`;
+}
+
+function _renderMapResourcePreview(r) {
+  let info = '';
+  try {
+    const data = JSON.parse(r.mapData);
+    const terrCount = (data.territories || []).length;
+    const locCount = (data.locationMarkers || []).length;
+    const bgLabel = data.bgType === 'land' ? '🏔️ 陆地' : '🌊 海洋';
+    info = `${bgLabel} · ${terrCount} 领地 · ${locCount} 地点标注`;
+  } catch (e) { info = '数据解析失败'; }
+  return `<div style="margin-bottom:12px;padding:12px;background:var(--bg-alt);border-radius:var(--radius-sm)">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:8px">🗺️ 世界地图数据 — ${esc(info)}</div>
+    <button class="btn btn-xs btn-primary" onclick="_importMapFromResource('${esc(r.id)}')">📥 导入到世界地图编辑器</button>
+  </div>`;
+}
+
+async function _importMapFromResource(resId) {
+  const res = (state.data.resources || []).find(r => r.id === resId);
+  if (!res || !res.mapData) { showToast('该资源无地图数据'); return; }
+  try {
+    const data = JSON.parse(res.mapData);
+    if (!state.data.worldMap) state.data.worldMap = { seed: 0, genCount: 12, territories: [], locationMarkers: [], nextId: 1 };
+    const md = state.data.worldMap;
+    if (data.seed) md.seed = data.seed;
+    if (data.genCount) md.genCount = data.genCount;
+    if (data.territories) md.territories = data.territories;
+    if (data.locationMarkers) md.locationMarkers = data.locationMarkers;
+    if (data.nextId) md.nextId = data.nextId;
+    autoSave();
+    switchTab('map');
+    await new Promise(r => setTimeout(r, 100));
+    if (typeof _terrainCache !== 'undefined') _terrainCache = null;
+    if (typeof _mapFullRender === 'function') await _mapFullRender();
+    if (typeof _updateTerritoryPanel === 'function') _updateTerritoryPanel();
+    if (typeof _updateLocListPanel === 'function') _updateLocListPanel();
+    if (typeof _updateTerritoryListPanel === 'function') _updateTerritoryListPanel();
+    showToast('地图已导入');
+  } catch (e) {
+    showToast('导入失败: 数据格式错误');
+  }
 }
 
 function renderResourceGraphPreview(r) {

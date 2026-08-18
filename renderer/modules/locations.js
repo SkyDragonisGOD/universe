@@ -4,9 +4,10 @@
 // ============================================================
 
 function renderLocations() {
+  const returnBtn = state._mapReturnFromTab ? `<button class="btn btn-xs btn-outline" onclick="const t=state._mapReturnFromTab;state._mapReturnFromTab=null;switchTab(t||'map')" style="margin-right:4px">🗺️ 返回地图</button>` : '';
   return `<div class="char-layout">
     <div class="char-list-panel">
-      <div class="flex-between mb-8"><h3>📍 地点列表</h3><div class="flex-gap"><button class="btn btn-ai btn-sm" onclick="aiGenLocation()">🤖 AI 生成</button><button class="btn btn-sm btn-primary" onclick="addLocation()">+ 添加</button></div></div>
+      <div class="flex-between mb-8"><h3>📍 地点列表</h3><div class="flex-gap">${returnBtn}<button class="btn btn-sm btn-primary" onclick="addLocation()">+ 添加</button></div></div>
       ${renderSearchBox('locSearch')}
       <div id="location-list">${renderLocationList()}</div>
     </div>
@@ -55,6 +56,7 @@ function renderLocationWikiView(loc) {
     ${locChars.length>0?`<div class="wiki-section"><div class="wiki-section-title">关联角色</div><div class="wiki-tags">${locChars.map(ch=>{const descArg=ch._desc?`, '${jsStr(ch._desc)}'`:'';return`<span class="wiki-tag skill" onclick="showPreviewCard('character','${esc(ch.id)}',event${descArg})" style="cursor:pointer">${esc(ch.name)}</span>`;}).join('')}</div></div>`:''}
     ${locEvents.length>0?`<div class="wiki-section"><div class="wiki-section-title">关联事件</div><div class="wiki-tags">${locEvents.map(ev=>{const descArg=ev._desc?`, '${jsStr(ev._desc)}'`:'';return`<span class="wiki-tag item" onclick="showPreviewCard('event','${esc(ev.id)}',event${descArg})" style="cursor:pointer">${esc(ev.name)}</span>`;}).join('')}</div></div>`:''}
     ${locFactions.length>0?`<div class="wiki-section"><div class="wiki-section-title">关联势力</div><div class="wiki-tags">${locFactions.map(fa=>{const descArg=fa._desc?`, '${jsStr(fa._desc)}'`:'';return`<span class="wiki-tag item" onclick="showPreviewCard('faction','${esc(fa.id)}',event${descArg})" style="cursor:pointer">${esc(fa.name)}</span>`;}).join('')}</div></div>`:''}
+    ${(loc.backpackItems && Object.keys(loc.backpackItems).some(k=>(loc.backpackItems[k]||[]).length>0))?`<div class="wiki-section"><div class="wiki-section-title">🎲 背包物品</div>${Object.entries(loc.backpackItems).filter(([bpId,itemIds])=>itemIds.length>0).map(([bpId,itemIds])=>{const bp=(state.data.worldBackpacks||[]).find(b=>b.id===bpId);if(!bp)return'';const bpItems=(state.data.items||[]).filter(i=>i.backpackId===bpId&&itemIds.includes(i.id));return bpItems.length>0?`<div style="margin-bottom:4px"><span style="font-size:11px;color:var(--muted)">${esc(bp.name)}:</span> <div class="wiki-tags" style="display:inline-flex">${bpItems.map(it=>`<span class="wiki-tag item" style="cursor:pointer" onclick="showPreviewCard('item','${esc(it.id)}',event)">${it.icon||'📦'} ${esc(it.name)}</span>`).join('')}</div></div>`:'';}).join('')}</div>`:''}
     ${_normLinks(loc.relatedVolumes).length>0?`<div class="wiki-section"><div class="wiki-section-title">📑 关联卷</div><div class="wiki-tags">${_normLinks(loc.relatedVolumes).map(vl=>{const vol=(state.data.outline||[]).find((v,i)=>i===parseInt(vl.id)||v.id===vl.id);return vol?`<span class="wiki-tag item">📖 ${esc(vol.title||'未命名卷')}</span>`:`<span class="wiki-tag item">${esc(vl.id)}</span>`;}).join('')}</div></div>`:''}
   </div>
   <div class="detail-sticky-bar">
@@ -73,6 +75,7 @@ function renderLocationEditForm(loc) {
   ensurePropertyDefs();
   const customProps = getCustomPropsForScope('locations');
   if (!loc.customProps) loc.customProps = {};
+  if (!loc.backpackItems) loc.backpackItems = {};
   return `<div class="card detail-scroll-area">
     <div class="form-row"><div class="form-group"><label>名称</label><input value="${esc(loc.name)}" onchange="updateLocation('name',this.value)"></div>
     <div class="form-group"><label>分类</label>${renderCategorySelect(loc.category||'','category',"updateLocation('category',this.value)")}</div></div>
@@ -116,6 +119,21 @@ function renderLocationEditForm(loc) {
           return fa ? `<span class="wiki-tag item"><span class="dot" style="background:${fa.color||'#888'};width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:4px"></span>${esc(fa.name)}${descHtml}<button class="btn btn-xs btn-icon btn-danger" style="font-size:8px;margin-left:2px" onclick="removeLocFaction('${esc(fl.id)}')">×</button></span>` : '';
         }).join('')}</div>` : ''}
       </div>
+      ${(state.data.worldBackpacks||[]).length === 0 ? '' : (state.data.worldBackpacks||[]).map(bp => {
+        const bpItems = (state.data.items||[]).filter(i=>i.backpackId===bp.id);
+        const selectedItems = (loc.backpackItems||{})[bp.id]||[];
+        return `<div class="card"><h4>🎲 ${esc(bp.name)}</h4>
+          ${bpItems.length===0 ? '<div class="text-xs text-muted" style="padding:4px 0">此系统为空</div>' :
+          `<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+            <span class="text-xs text-muted">已选 ${selectedItems.length} 项</span>
+            <button class="btn btn-xs btn-outline" onclick="openLocBackpackSelectModal('${bp.id}')">选择物品</button>
+          </div>
+          ${selectedItems.length > 0 ? `<div style="display:flex;flex-wrap:wrap;gap:4px">${selectedItems.map(iid => {
+            const it = bpItems.find(i=>i.id===iid);
+            return it ? `<span class="wiki-tag item" style="cursor:pointer" onclick="showPreviewCard('item','${esc(it.id)}',event)">${it.icon||'📦'} ${esc(it.name)}</span>` : '';
+          }).join('')}</div>` : ''}`}
+        </div>`;
+      }).join('')}
       <div class="form-group"><label>关联卷</label>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
           <span class="text-xs text-muted">已选 ${_normLinks(loc.relatedVolumes).length} 个</span>
@@ -213,8 +231,8 @@ function setupLocations() {
   });
 }
 
-function addLocation() { let base='新地点',n=1; while((state.data.locations||[]).some(l=>l.name===base)){base='新地点'+(++n);} const loc={id:uid(),name:base,description:'',category:'',tags:[],relatedCharacters:[],events:[],relatedFactions:[],relatedVolumes:[],customProps:{}}; state.data.locations.push(loc); state.selectedLocationId=loc.id; state.editingLocation=true; _locIsNew=true; autoSave(); state._forceAnimate=true; state._animateScope='detail'; renderTabContent(); }
-async function aiGenLocation() { const text=await runAI(window.api.aiGenerateLocation(state.data)); if (text) { const json=tryParseJSON(text); if (json&&json.name) { const loc={id:uid(),name:json.name,description:json.description||'',category:json.category||'',tags:json.tags||[],relatedCharacters:json.relatedCharacters||[],events:json.events||[],relatedFactions:[],customProps:{}}; state.data.locations.push(loc); state.selectedLocationId=loc.id; autoSave(); renderTabContent(); } } }
+function addLocation() { let base='新地点',n=1; while((state.data.locations||[]).some(l=>l.name===base)){base='新地点'+(++n);} const loc={id:uid(),name:base,description:'',category:'',tags:[],relatedCharacters:[],events:[],relatedFactions:[],relatedWorldSystems:[],relatedVolumes:[],backpackItems:{},customProps:{}}; state.data.locations.push(loc); state.selectedLocationId=loc.id; state.editingLocation=true; _locIsNew=true; autoSave(); state._forceAnimate=true; state._animateScope='detail'; renderTabContent(); }
+async function aiGenLocation() { const text=await runAI(window.api.aiGenerateLocation(state.data)); if (text) { const json=tryParseJSON(text); if (json&&json.name) { const loc={id:uid(),name:json.name,description:json.description||'',category:json.category||'',tags:json.tags||[],relatedCharacters:json.relatedCharacters||[],events:json.events||[],relatedFactions:[],relatedWorldSystems:[],relatedVolumes:[],backpackItems:{},customProps:{}}; state.data.locations.push(loc); state.selectedLocationId=loc.id; autoSave(); renderTabContent(); } } }
 function updateLocation(key,value) { const loc=(state.data.locations||[]).find(l=>l.id===state.selectedLocationId); if (loc) { if (key==='name'&&checkDuplicate(state.data.locations,value,loc.id)){showToast('已存在同名地点！');renderTabContent();return;} loc[key]=value; autoSave(); } }
 function setLocationCustomProp(propId, value) { const loc=(state.data.locations||[]).find(l=>l.id===state.selectedLocationId); if (!loc) return; if (!loc.customProps) loc.customProps = {}; loc.customProps['cp_'+propId] = value; autoSave(); }
 
@@ -244,6 +262,21 @@ async function openLocFactionSelectModal() {
   const newIds=result.map(r=>r.id);
   syncLink('location',loc.id,'relatedFactions',newIds,'',oldIds);
   autoSave(); if (state.editingLocation) { const detail=$('#location-detail'); if(detail) detail.innerHTML=renderLocationEditForm(loc); } else { renderTabContent(); }
+}
+
+async function openLocBackpackSelectModal(bpId) {
+  const loc=(state.data.locations||[]).find(l=>l.id===state.selectedLocationId);
+  if (!loc) return;
+  if (!loc.backpackItems) loc.backpackItems = {};
+  const bpItems = (state.data.items||[]).filter(i=>i.backpackId===bpId);
+  if (bpItems.length===0){showToast('此系统无物品');return;}
+  const selectedIds = loc.backpackItems[bpId]||[];
+  const items = bpItems.map(i=>({id:i.id,name:(i.icon||'📦')+' '+(i.name||'未命名')}));
+  const result = await customSelectModal('🎲 选择物品', items, selectedIds);
+  if (result===null) return;
+  loc.backpackItems[bpId] = result;
+  autoSave();
+  if(state.editingLocation){const d=$('#location-detail');if(d)d.innerHTML=renderLocationEditForm(loc);}else{renderTabContent();}
 }
 
 async function deleteLocation(id) { if (!await customConfirm('确定删除此地？')) return; state.data.locations=(state.data.locations||[]).filter(l=>l.id!==id); if (state.selectedLocationId===id) state.selectedLocationId=null; autoSave(); renderTabContent(); }

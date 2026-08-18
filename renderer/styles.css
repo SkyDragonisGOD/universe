@@ -46,6 +46,8 @@ input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-sele
 .btn-xs { padding: 4px 10px; font-size: 13px; font-weight: 500; }
 .btn-danger { background: var(--white); color: #e53e3e; box-shadow: var(--shadow-card); }
 .btn-danger:hover { box-shadow: var(--shadow-card-hover); background: #fff5f5; }
+.btn-warning { background: #f6ad55; color: #fff; box-shadow: var(--shadow-card); }
+.btn-warning:hover { background: #ed8936; box-shadow: var(--shadow-card-hover); }
 .btn-green { background: var(--white); color: #38a169; box-shadow: var(--shadow-card); }
 .btn-green:hover { box-shadow: var(--shadow-card-hover); }
 .btn-icon { padding: 4px 8px; font-size: 16px; line-height: 1; }
@@ -390,9 +392,51 @@ input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-sele
 .home-header h1 span { display: inline-block; will-change: transform, opacity; }
 .home-header .subtitle span { display: inline-block; will-change: transform, opacity; }
 
-/* ============ MAP ============ */
-.map-container { background: var(--white); border-radius: var(--radius-sm); overflow: hidden; box-shadow: var(--shadow-card); }
-.map-container canvas { width: 100%; height: auto; display: block; }
+/* ============ FANTASY MAP ============ */
+.fmap-layout { display: flex; flex-direction: column; gap: 0; border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; }
+.fmap-toolbar { display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; background: var(--white); flex-wrap: wrap; gap: 8px; }
+.fmap-toolbar-left { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.fmap-toolbar-right { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.fmap-main { display: flex; gap: 0; overflow: hidden; height: calc(100vh - 160px); min-height: 400px; }
+.fmap-left { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
+.fmap-canvas-wrap { flex: 0 0 auto; position: relative; overflow: hidden; line-height: 0; background: var(--white); max-height: 60vh; }
+.fmap-canvas { width: 100%; display: flex; align-items: center; justify-content: center; }
+.fmap-canvas canvas { display: block; }
+.fmap-draw-hint { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7); color: #fff; padding: 6px 16px; border-radius: 20px; font-size: 12px; z-index: 10; pointer-events: auto; white-space: nowrap; }
+.fmap-stats-content { flex: 1; overflow-y: auto; padding: 10px 16px; background: var(--white); border-top: 1px solid var(--border); min-height: 0; display: flex; flex-direction: column; }
+.fmap-detail-card { min-height: 100%; flex-shrink: 0; display: flex; flex-direction: column; padding: 16px 20px; background: var(--near-white); border-radius: var(--radius-sm); }
+.fmap-detail-card .wiki-page { max-width: none; flex: 1; display: flex; flex-direction: column; }
+.fmap-detail-card .detail-sticky-bar { padding-top: 10px; margin-top: 10px; flex-shrink: 0; background: transparent; border-top: 1px solid var(--border-subtle); }
+
+.fmap-compact { font-size: 13px !important; line-height: 1.4 !important; }
+.fmap-compact .wiki-header { margin-bottom: 8px !important; padding-bottom: 6px !important; border-bottom: 1px solid var(--border-subtle) !important; }
+.fmap-compact .wiki-title { font-size: 16px !important; margin-bottom: 2px !important; }
+.fmap-compact .wiki-meta { gap: 4px !important; margin-top: 4px !important; }
+.fmap-compact .wiki-badge { font-size: 11px !important; padding: 2px 8px !important; }
+.fmap-compact-section { margin-bottom: 10px !important; padding: 8px 10px !important; background: #fff !important; border-radius: 8px !important; border: 1px solid var(--border-subtle) !important; }
+.fmap-compact-label { font-size: 11px !important; font-weight: 600 !important; color: var(--warm-gray) !important; text-transform: uppercase !important; letter-spacing: 0.3px !important; margin-bottom: 4px !important; padding-bottom: 3px !important; border-bottom: 1px solid var(--border-subtle) !important; }
+.fmap-compact-value { font-size: 12px !important; line-height: 1.5 !important; color: var(--text) !important; }
+.fmap-compact-tags { display: flex !important; flex-wrap: wrap !important; gap: 4px !important; margin-top: 4px !important; }
+.fmap-compact-tags .wiki-tag { font-size: 11px !important; padding: 3px 8px !important; }
+.fmap-stats-row { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 16px; color: var(--text); flex: 1; align-content: flex-start; }
+.fmap-stats-item { display: inline-flex; align-items: center; gap: 4px; }
+.fmap-stats-item .label { color: var(--muted); }
+.fmap-stats-item .value { font-weight: 600; }
+.fmap-stats-group { margin-bottom: 8px; }
+.fmap-stats-group-title { font-size: 13px; font-weight: 600; color: var(--muted); margin-bottom: 4px; border-bottom: 1px solid var(--border); padding-bottom: 2px; }
+.fmap-stats-group-items { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 16px; }
+.fmap-sidebar { width: 280px; background: var(--white); border-left: 1px solid var(--border); overflow-y: auto; padding: 8px; display: flex; flex-direction: column; gap: 8px; }
+.fmap-sidebar-section { padding: 10px; background: var(--bg-alt); border-radius: var(--radius-xs); }
+.fmap-param { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; font-size: 12px; }
+.fmap-param label { min-width: 36px; color: var(--muted); }
+.fmap-param input[type=range] { flex: 1; height: 4px; }
+.fmap-param span { min-width: 24px; text-align: right; font-size: 12px; color: var(--muted); }
+.fmap-loc-list { display: flex; flex-direction: column; gap: 3px; max-height: 150px; overflow-y: auto; }
+.fmap-loc-item { display: flex; align-items: center; justify-content: space-between; padding: 4px 6px; font-size: 13px; border-radius: var(--radius-xs); }
+.fmap-loc-item:hover { background: var(--bg-alt); }
+.fmap-info-dropdown { position: absolute; top: 100%; right: 0; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-sm); box-shadow: 0 4px 16px rgba(0,0,0,0.12); padding: 6px 0; min-width: 180px; z-index: 100; }
+.fmap-info-dropdown label { display: flex; align-items: center; gap: 6px; padding: 4px 12px; font-size: 12px; cursor: pointer; }
+.fmap-info-dropdown label:hover { background: var(--bg-alt); }
 
 /* ============ RELATIONS CANVAS ============ */
 .relations-canvas-container { background: var(--white); border-radius: var(--radius-sm); overflow: hidden; box-shadow: var(--shadow-card); margin: 12px 0; }
@@ -468,6 +512,10 @@ input, textarea, [contenteditable="true"] { -webkit-user-select: text; user-sele
 .emoji-grid { display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; }
 .emoji-btn { width: 36px; height: 36px; display: flex; align-items: center; justify-content: center; font-size: 20px; background: var(--white); border: 1px solid var(--border); border-radius: var(--radius-xs); cursor: pointer; transition: all var(--transition); padding: 0; }
 .emoji-btn:hover { background: var(--light-gray); border-color: var(--black); transform: scale(1.15); }
+.emoji-add-wrapper { display: inline-flex; align-items: center; }
+.emoji-inline-input-wrapper { width: 90px; height: 36px; border: 2px solid var(--accent); border-radius: var(--radius-xs); background: var(--white); display: inline-flex; align-items: center; animation: emoji-input-appear 0.15s ease; }
+.emoji-inline-input { width: 100%; height: 100%; padding: 2px 6px; font-size: 14px; border: none; outline: none; text-align: center; background: transparent; font-family: var(--font-body); }
+@keyframes emoji-input-appear { from { opacity: 0; transform: scale(0.8); } to { opacity: 1; transform: scale(1); } }
 
 /* ============ PREVIEW CARD POPUP ============ */
 .preview-card {
