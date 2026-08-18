@@ -3,15 +3,58 @@
 // 依赖: core/state.js, core/utils.js, core/animation.js, core/ai.js
 // ============================================================
 
+const PRESET_GENRES = ['奇幻','科幻','蒸汽朋克','赛博朋克','末日废土','历史','现代','神话','仙侠','武侠','恐怖','悬疑','童话','乌托邦','反乌托邦','太空歌剧','暗黑奇幻','都市奇幻','低魔奇幻','高魔奇幻'];
+const PRESET_TAGS = ['魔法体系','多物种','架空大陆','星际旅行','时间旅行','平行世界','政治阴谋','战争冲突','宗教信仰','古老文明','神秘遗迹','禁忌知识','命运预言','家族传承','生存挣扎','身份认同','复仇','探索发现','禁忌之恋','成长蜕变','种族冲突','阶级分化','生态危机','技术伦理','意识觉醒','神明干预','灵魂轮回','契约束缚','异变感染','远古威胁'];
+
+function _ovTagHtml(tag, selected, onclick) {
+  const cls = selected ? 'ov-tag selected' : 'ov-tag';
+  return `<span class="${cls}" ${onclick}>${esc(tag)}</span>`;
+}
+
+function _ovGenreHtml(genre, selected, onclick) {
+  const cls = selected ? 'ov-genre selected' : 'ov-genre';
+  return `<span class="${cls}" ${onclick}>${esc(genre)}</span>`;
+}
+
 // --- OVERVIEW ---
 function renderOverview() {
   const p = state.data.project;
-  return `<div class="card"><h3>项目信息</h3>
+  const isEditing = state._ovEditing || false;
+  const genres = p.genre ? (Array.isArray(p.genre) ? p.genre : p.genre.split(',').map(g=>g.trim()).filter(Boolean)) : [];
+  const tags = p.tags || [];
+
+  if (!isEditing) {
+    const genreDisplay = genres.length > 0 ? genres.map(g => `<span class="wiki-tag skill">${esc(g)}</span>`).join(' ') : '<span class="text-muted">未设置</span>';
+    const tagDisplay = tags.length > 0 ? tags.map(t => `<span class="wiki-tag item">${esc(t)}</span>`).join(' ') : '<span class="text-muted">未设置</span>';
+    return `<div class="card"><div class="flex-between mb-8"><h3>项目信息</h3><button class="btn btn-sm btn-outline" onclick="toggleOvEdit()">✏️ 编辑</button></div>
+      <div class="wiki-field"><span class="wiki-label">世界名称</span><span class="wiki-value">${esc(p.name)}</span></div>
+      <div class="wiki-field"><span class="wiki-label">类型/风格</span><div class="wiki-tags" style="margin-top:4px">${genreDisplay}</div></div>
+      <div class="wiki-field"><span class="wiki-label">标签</span><div class="wiki-tags" style="margin-top:4px">${tagDisplay}</div></div>
+      <div class="wiki-field"><span class="wiki-label">世界观简介</span><p style="font-size:14px;line-height:1.6;margin-top:4px;white-space:pre-wrap">${esc(p.synopsis||'未设置')}</p></div></div>
+    ${_renderOvStats()}`;
+  }
+
+  const genreOptions = PRESET_GENRES.map(g => _ovGenreHtml(g, genres.includes(g), `onclick="toggleOvGenre('${esc(g)}')"`)).join('');
+  const tagOptions = PRESET_TAGS.map(t => _ovTagHtml(t, tags.includes(t), `onclick="toggleOvTag('${esc(t)}')"`)).join('');
+  const customGenreInput = `<div class="ov-custom-row"><input id="ov-custom-genre" placeholder="自定义类型..." style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:var(--font-body)"><button class="btn btn-xs btn-outline" onclick="addOvCustomGenre()">添加</button></div>`;
+  const customTagInput = `<div class="ov-custom-row"><input id="ov-custom-tag" placeholder="自定义标签..." style="flex:1;padding:6px 10px;border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;font-family:var(--font-body)"><button class="btn btn-xs btn-outline" onclick="addOvCustomTag()">添加</button></div>`;
+
+  return `<div class="card"><div class="flex-between mb-8"><h3>项目信息</h3><button class="btn btn-sm btn-primary" onclick="toggleOvEdit()">✓ 完成</button></div>
     <div class="form-group"><label>世界名称</label><input id="ov-name" value="${esc(p.name)}" onchange="updateProjectField('name',this.value)"></div>
-    <div class="form-row"><div class="form-group"><label>类型/风格</label><input id="ov-genre" value="${esc(p.genre||'')}" onchange="updateProjectField('genre',this.value)"></div>
-    <div class="form-group"><label>标签（逗号分隔）</label><input id="ov-tags" value="${esc((p.tags||[]).join(', '))}" onchange="updateProjectField('tags',this.value.split(',').map(t=>t.trim()).filter(Boolean))"></div></div>
+    <div class="form-group"><label>类型/风格</label>
+      <div class="ov-preset-list">${genreOptions}</div>
+      ${customGenreInput}
+    </div>
+    <div class="form-group"><label>标签</label>
+      <div class="ov-preset-list">${tagOptions}</div>
+      ${customTagInput}
+    </div>
     <div class="form-group"><label>世界观简介</label><textarea id="ov-synopsis" rows="4" onchange="updateProjectField('synopsis',this.value)">${esc(p.synopsis||'')}</textarea></div></div>
-    <div class="card"><h3>数据统计</h3><div class="grid-3">
+    ${_renderOvStats()}`;
+}
+
+function _renderOvStats() {
+  return `<div class="card"><h3>数据统计</h3><div class="grid-3">
       <div class="attr-item"><div class="attr-name">📚 词条总数</div><div class="attr-value">${getAllExplorerEntries().length}</div></div>
       ${[['地点','locations'],['角色','characters'],['势力','factions'],['关系图','characterRelations'],['大纲','outline'],['力量体系','powers']].map(([label,key]) => {
         return `<div class="attr-item"><div class="attr-name">${label}</div><div class="attr-value">${(state.data[key]||[]).length}</div></div>`;
@@ -25,11 +68,56 @@ function renderOverview() {
         return `<div class="attr-item"><div class="attr-name">${sub.icon||'📄'} ${esc(sub.name)}</div><div class="attr-value">${itemCount}</div></div>`;
       }).join('')}
       <div class="attr-item"><div class="attr-name">📦 资源</div><div class="attr-value">${(state.data.resources||[]).length}</div></div>
-      <div class="attr-item"><div class="attr-name">🗺️ 领地</div><div class="attr-value">${(state.data.worldMap?.territories||[]).length}</div></div>
       <div class="attr-item"><div class="attr-name">📍 地图标注</div><div class="attr-value">${(state.data.worldMap?.locationMarkers||[]).length}</div></div>
       <div class="attr-item"><div class="attr-name">🧬 种族</div><div class="attr-value">${(state.data.races||[]).length}</div></div>
       <div class="attr-item"><div class="attr-name">⚡ 事件</div><div class="attr-value">${(state.data.timeline||[]).length}</div></div>
     </div></div>`;
+}
+
+function toggleOvEdit() {
+  state._ovEditing = !state._ovEditing;
+  renderTabContent();
+}
+
+function toggleOvGenre(genre) {
+  const p = state.data.project;
+  let genres = p.genre ? (Array.isArray(p.genre) ? p.genre : p.genre.split(',').map(g=>g.trim()).filter(Boolean)) : [];
+  if (genres.includes(genre)) genres = genres.filter(g => g !== genre);
+  else genres.push(genre);
+  p.genre = genres;
+  autoSave();
+  renderTabContent();
+}
+
+function toggleOvTag(tag) {
+  const p = state.data.project;
+  if (!p.tags) p.tags = [];
+  if (p.tags.includes(tag)) p.tags = p.tags.filter(t => t !== tag);
+  else p.tags.push(tag);
+  autoSave();
+  renderTabContent();
+}
+
+function addOvCustomGenre() {
+  const input = $('#ov-custom-genre');
+  if (!input || !input.value.trim()) return;
+  const val = input.value.trim();
+  const p = state.data.project;
+  let genres = p.genre ? (Array.isArray(p.genre) ? p.genre : p.genre.split(',').map(g=>g.trim()).filter(Boolean)) : [];
+  if (!genres.includes(val)) { genres.push(val); p.genre = genres; autoSave(); }
+  input.value = '';
+  renderTabContent();
+}
+
+function addOvCustomTag() {
+  const input = $('#ov-custom-tag');
+  if (!input || !input.value.trim()) return;
+  const val = input.value.trim();
+  const p = state.data.project;
+  if (!p.tags) p.tags = [];
+  if (!p.tags.includes(val)) { p.tags.push(val); autoSave(); }
+  input.value = '';
+  renderTabContent();
 }
 
 async function aiGenSynopsis() { const el = $('#ai-overview-result'); const text = await runAI(window.api.aiGenerateSynopsis(state.data), el); if (text) { state.data.project.synopsis = text; $('#ov-synopsis').value = text; autoSave(); } }

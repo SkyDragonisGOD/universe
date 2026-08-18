@@ -193,6 +193,7 @@ ipcMain.handle('create-project', (_, name) => {
     },
     storylines: [], outline: [], statusTable: [],
     characterRelations: [],
+    entityRelations: [],
     constitution: [],
     worldMap: { seed: 0, genCount: 12, territories: [], locationMarkers: [], nextId: 1 },
     rules: { style: '', taboos: '', consistency: '' }
