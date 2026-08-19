@@ -73,7 +73,7 @@ function saveEncyclopediaItemEdit() {
   editEncyclopediaItemId = null;
   _encyclopediaIsNew = false;
   autoSave();
-  renderTabContent();
+  state._forceAnimate=true; state._animateScope='detail'; renderTabContent();
 }
 
 function cancelEncyclopediaItemEdit() {
@@ -96,13 +96,13 @@ function cancelEncyclopediaItemEdit() {
   }
   editEncyclopediaItemId = null;
   _encyclopediaIsNew = false;
-  renderTabContent();
+  state._forceAnimate=true; state._animateScope='detail'; renderTabContent();
 }
 
 function editEncyclopediaItem(id) {
   editEncyclopediaItemId = id;
   _encyclopediaIsNew = false;
-  renderTabContent();
+  state._forceAnimate=true; state._animateScope='detail'; renderTabContent();
 }
 
 async function addEncyclopediaCategory() {
@@ -302,6 +302,8 @@ function bindEncyclopediaListEvents() {
         state.selectedEncyclopediaCatId = el.dataset.catId;
         state.selectedEncyclopediaSubId = null;
         editEncyclopediaItemId = null;
+        state._forceAnimate = true;
+        state._animateScope = 'sub-detail';
         renderTabContent();
       };
     });
@@ -313,6 +315,8 @@ function bindEncyclopediaListEvents() {
         if (ev.target.closest('.drag-handle') || ev.target.closest('button')) return;
         state.selectedEncyclopediaSubId = el.dataset.subId;
         editEncyclopediaItemId = null;
+        state._forceAnimate = true;
+        state._animateScope = 'detail';
         renderTabContent();
       };
     });

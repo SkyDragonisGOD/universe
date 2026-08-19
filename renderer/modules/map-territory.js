@@ -175,6 +175,9 @@ function _updateTerritoryPanel() {
     ${bodyHtml}
     <button class="btn btn-xs btn-danger" style="width:100%;margin-top:6px" onclick="_mapDeleteTerritory('${esc(t.id)}')">🗑️ 删除此领地</button>
   </div>`;
+  if (typeof gsap !== 'undefined') {
+    gsap.fromTo(panel, { y: 12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.3, ease: 'power3.out' });
+  }
 }
 
 function _mapFactionItems() { return (state.data.factions || []).map(f => ({ id: f.id, name: f.name })); }
@@ -246,7 +249,22 @@ function _toggleTerritoryDetail() {
   _mapTerritoryDetailCollapsed = !_mapTerritoryDetailCollapsed;
   const info = $('#map-territory-info');
   const btn = $('#map-terr-detail-toggle');
-  if (info) info.style.display = _mapTerritoryDetailCollapsed ? 'none' : '';
+  if (!info) return;
+  if (typeof gsap !== 'undefined') {
+    gsap.killTweensOf(info);
+    if (_mapTerritoryDetailCollapsed) {
+      const tl = gsap.timeline({ onComplete: () => { info.style.display = 'none'; } });
+      tl.to(info, { opacity: 0, duration: 0.25, ease: 'power2.out' }, 0);
+      tl.to(info, { height: 0, duration: 0.4, ease: 'power3.out' }, 0);
+    } else {
+      info.style.display = '';
+      const tl = gsap.timeline();
+      tl.fromTo(info, { height: 0, opacity: 0 }, { height: 'auto', duration: 0.4, ease: 'power4.out' }, 0);
+      tl.fromTo(info, { opacity: 0 }, { opacity: 1, duration: 0.3, ease: 'power2.out' }, 0.08);
+    }
+  } else {
+    info.style.display = _mapTerritoryDetailCollapsed ? 'none' : '';
+  }
   if (btn) btn.textContent = _mapTerritoryDetailCollapsed ? '展开' : '收起';
 }
 

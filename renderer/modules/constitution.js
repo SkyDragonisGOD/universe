@@ -80,6 +80,23 @@ function getAllExplorerEntries() {
     const wsItems = (d.items||[]).filter(i=>i.backpackId===ws.id);
     entries.push({ type:'worldSystem', id:ws.id, icon:'🌍', name:ws.name||'未命名系统', desc:`${wsItems.length} 个物品`, tags:['世界系统'] });
   });
+  (d.entityVariants||[]).forEach(v => {
+    const parentRef = ([
+      { type:'character', getData:()=>d.characters||[], nameKey:'name', icon:'👤' },
+      { type:'faction', getData:()=>d.factions||[], nameKey:'name', icon:'🏰' },
+      { type:'location', getData:()=>d.locations||[], nameKey:'name', icon:'📍' },
+      { type:'race', getData:()=>d.races||[], nameKey:'name', icon:'🧬' },
+      { type:'item', getData:()=>d.items||[], nameKey:'name', icon:'📦' },
+      { type:'event', getData:()=>d.timeline||[], nameKey:'name', icon:'⚡' },
+    ]).find(r=>r.type===v.parentType);
+    const parent = parentRef ? parentRef.getData().find(e=>e.id===v.parentId) : null;
+    const parentName = parent ? parent[parentRef.nameKey] : '';
+    const typeLabel = v.variantType === 'historical' ? '历史形态' : '变体';
+    const tags = [];
+    if (parentName) tags.push(parentName);
+    tags.push(typeLabel);
+    entries.push({ type:'variant', id:v.id, icon: v.variantType === 'historical' ? '📜' : '🔄', name:v.name||'未命名变体', desc:(v.description||'').substring(0,120), tags });
+  });
   return entries;
 }
 
@@ -187,6 +204,10 @@ function showExplorerDetail(type, id) {
     const ws = (state.data.worldBackpacks||[]).find(w=>w.id===id);
     if (!ws) return;
     html = renderExplorerWorldSystemDetail(ws);
+  } else if (type === 'variant') {
+    const v = (state.data.entityVariants||[]).find(va=>va.id===id);
+    if (!v) return;
+    html = _renderVariantDetailPage(v);
   } else if (type === 'outline_volume') {
     const vi = parseInt(id.replace('vol_',''));
     const vol = (state.data.outline||[])[vi];
@@ -278,12 +299,12 @@ function renderExplorerCharacterDetail(ch) {
     <div class="wiki-header"><h2 class="wiki-title">👤 ${esc(ch.name)}</h2>
       <div class="wiki-meta">${ch.role?`<span class="wiki-badge race">${esc(ch.role)}</span>`:''} ${ch.gender?`<span class="wiki-badge gender">${esc(ch.gender)}</span>`:''} ${raceLinks.map(r=>`<span class="wiki-badge skill">${esc(r)}</span>`).join('')}</div>
     </div>
-    ${ch.shortDescription?`<div class="wiki-section"><div class="wiki-section-title">一句话简介</div><div class="wiki-value">${esc(ch.shortDescription)}</div></div>`:''}
-    ${ch.appearance?`<div class="wiki-section"><div class="wiki-section-title">外貌</div><div class="wiki-value">${esc(ch.appearance)}</div></div>`:''}
-    ${ch.personality?`<div class="wiki-section"><div class="wiki-section-title">性格</div><div class="wiki-value">${esc(ch.personality)}</div></div>`:''}
-    ${ch.background?`<div class="wiki-section"><div class="wiki-section-title">背景</div><div class="wiki-value">${esc(ch.background)}</div></div>`:''}
-    ${ch.motivation?`<div class="wiki-section"><div class="wiki-section-title">动机</div><div class="wiki-value">${esc(ch.motivation)}</div></div>`:''}
-    ${ch.abilities?`<div class="wiki-section"><div class="wiki-section-title">能力</div><div class="wiki-value">${esc(ch.abilities)}</div></div>`:''}
+    ${ch.shortDescription?`<div class="wiki-section"><div class="wiki-section-title">一句话简介</div><div class="wiki-value">${_renderLinkedContent(ch.shortDescription)}</div></div>`:''}
+    ${ch.appearance?`<div class="wiki-section"><div class="wiki-section-title">外貌</div><div class="wiki-value">${_renderLinkedContent(ch.appearance)}</div></div>`:''}
+    ${ch.personality?`<div class="wiki-section"><div class="wiki-section-title">性格</div><div class="wiki-value">${_renderLinkedContent(ch.personality)}</div></div>`:''}
+    ${ch.background?`<div class="wiki-section"><div class="wiki-section-title">背景</div><div class="wiki-value">${_renderLinkedContent(ch.background)}</div></div>`:''}
+    ${ch.motivation?`<div class="wiki-section"><div class="wiki-section-title">动机</div><div class="wiki-value">${_renderLinkedContent(ch.motivation)}</div></div>`:''}
+    ${ch.abilities?`<div class="wiki-section"><div class="wiki-section-title">能力</div><div class="wiki-value">${_renderLinkedContent(ch.abilities)}</div></div>`:''}
     ${chFactions.length>0?`<div class="wiki-section"><div class="wiki-section-title">所属势力</div><div class="wiki-tags">${chFactions.map((n,i)=>{const f=(state.data.factions||[]).find(fa=>fa.name===n);return f?`<span class="wiki-tag skill" onclick="event.stopPropagation();showPreviewCard('faction','${esc(f.id)}',event)" style="cursor:pointer">${esc(n)}</span>`:`<span class="wiki-tag skill">${esc(n)}</span>`;}).join('')}</div></div>`:''}
     ${chLocs.length>0?`<div class="wiki-section"><div class="wiki-section-title">所在地点</div><div class="wiki-tags">${chLocs.map(n=>{const l=(state.data.locations||[]).find(lo=>lo.name===n);return l?`<span class="wiki-tag item" onclick="event.stopPropagation();showPreviewCard('location','${esc(l.id)}',event)" style="cursor:pointer">${esc(n)}</span>`:`<span class="wiki-tag item">${esc(n)}</span>`;}).join('')}</div></div>`:''}
     ${customPropHtml?`<div class="wiki-section">${customPropHtml}</div>`:''}
@@ -310,7 +331,7 @@ function renderExplorerLocationDetail(loc) {
     <div class="wiki-header"><h2 class="wiki-title">📍 ${esc(loc.name)}</h2>
       <div class="wiki-meta">${loc.category&&loc.category!=='未知'?`<span class="wiki-badge race">${esc(loc.category)}</span>`:''} ${locTags.map(t=>`<span class="wiki-badge gender"><span class="dot" style="background:${t.color};width:6px;height:6px;border-radius:50%;display:inline-block;margin-right:4px"></span>${esc(t.name)}</span>`).join('')}</div>
     </div>
-    ${loc.description?`<div class="wiki-section"><div class="wiki-section-title">描述</div><div class="wiki-value">${esc(loc.description)}</div></div>`:''}
+    ${loc.description?`<div class="wiki-section"><div class="wiki-section-title">描述</div><div class="wiki-value">${_renderLinkedContent(loc.description)}</div></div>`:''}
     ${locChars.length>0?`<div class="wiki-section"><div class="wiki-section-title">关联角色</div><div class="wiki-tags">${locChars.map(n=>{const ch=(state.data.characters||[]).find(c=>c.name===n);return ch?`<span class="wiki-tag skill" onclick="event.stopPropagation();showPreviewCard('character','${esc(ch.id)}',event)" style="cursor:pointer">${esc(n)}</span>`:`<span class="wiki-tag skill">${esc(n)}</span>`;}).join('')}</div></div>`:''}
     ${locEvents.length>0?`<div class="wiki-section"><div class="wiki-section-title">关联事件</div><div class="wiki-tags">${locEvents.map(n=>{const ev=(state.data.timeline||[]).find(e=>(e.name||e.title)===n);return ev?`<span class="wiki-tag item" onclick="event.stopPropagation();showPreviewCard('event','${esc(ev.id)}',event)" style="cursor:pointer">${esc(n)}</span>`:`<span class="wiki-tag item">${esc(n)}</span>`;}).join('')}</div></div>`:''}
     ${locFactions.length>0?`<div class="wiki-section"><div class="wiki-section-title">关联势力</div><div class="wiki-tags">${locFactions.map(n=>{const fa=(state.data.factions||[]).find(f=>f.name===n);return fa?`<span class="wiki-tag item" onclick="event.stopPropagation();showPreviewCard('faction','${esc(fa.id)}',event)" style="cursor:pointer">${esc(n)}</span>`:`<span class="wiki-tag item">${esc(n)}</span>`;}).join('')}</div></div>`:''}
@@ -330,9 +351,9 @@ function renderExplorerFactionDetail(f) {
     <div class="wiki-header"><h2 class="wiki-title">🏰 ${esc(f.name)}</h2>
       <div class="wiki-meta">${f.type?`<span class="wiki-badge race">${esc(f.type)}</span>`:''}</div>
     </div>
-    ${f.description?`<div class="wiki-section"><div class="wiki-section-title">描述</div><div class="wiki-value">${esc(f.description)}</div></div>`:''}
-    ${f.goals?`<div class="wiki-section"><div class="wiki-section-title">目标</div><div class="wiki-value">${esc(f.goals)}</div></div>`:''}
-    ${f.resources?`<div class="wiki-section"><div class="wiki-section-title">资源</div><div class="wiki-value">${esc(f.resources)}</div></div>`:''}
+    ${f.description?`<div class="wiki-section"><div class="wiki-section-title">描述</div><div class="wiki-value">${_renderLinkedContent(f.description)}</div></div>`:''}
+    ${f.goals?`<div class="wiki-section"><div class="wiki-section-title">目标</div><div class="wiki-value">${_renderLinkedContent(f.goals)}</div></div>`:''}
+    ${f.resources?`<div class="wiki-section"><div class="wiki-section-title">资源</div><div class="wiki-value">${_renderLinkedContent(f.resources)}</div></div>`:''}
     ${fChars.length>0?`<div class="wiki-section"><div class="wiki-section-title">成员</div><div class="wiki-tags">${fChars.map(n=>{const ch=(state.data.characters||[]).find(c=>c.name===n);return ch?`<span class="wiki-tag skill" onclick="event.stopPropagation();showPreviewCard('character','${esc(ch.id)}',event)" style="cursor:pointer">${esc(n)}</span>`:`<span class="wiki-tag skill">${esc(n)}</span>`;}).join('')}</div></div>`:''}
     ${customPropHtml?`<div class="wiki-section">${customPropHtml}</div>`:''}
   </div>`;
@@ -350,9 +371,9 @@ function renderExplorerRaceDetail(r) {
     <div class="wiki-header"><h2 class="wiki-title">🧬 ${esc(r.name)}</h2>
       <div class="wiki-meta">${r.category?`<span class="wiki-badge race">${esc(r.category)}</span>`:''}</div>
     </div>
-    ${r.description?`<div class="wiki-section"><div class="wiki-section-title">描述</div><div class="wiki-value">${esc(r.description)}</div></div>`:''}
-    ${r.traits?`<div class="wiki-section"><div class="wiki-section-title">特征</div><div class="wiki-value">${esc(r.traits)}</div></div>`:''}
-    ${r.culture?`<div class="wiki-section"><div class="wiki-section-title">文化</div><div class="wiki-value">${esc(r.culture)}</div></div>`:''}
+    ${r.description?`<div class="wiki-section"><div class="wiki-section-title">描述</div><div class="wiki-value">${_renderLinkedContent(r.description)}</div></div>`:''}
+    ${r.traits?`<div class="wiki-section"><div class="wiki-section-title">特征</div><div class="wiki-value">${_renderLinkedContent(r.traits)}</div></div>`:''}
+    ${r.culture?`<div class="wiki-section"><div class="wiki-section-title">文化</div><div class="wiki-value">${_renderLinkedContent(r.culture)}</div></div>`:''}
     ${rChars.length>0?`<div class="wiki-section"><div class="wiki-section-title">相关角色</div><div class="wiki-tags">${rChars.map(n=>{const ch=(state.data.characters||[]).find(c=>c.name===n);return ch?`<span class="wiki-tag skill" onclick="event.stopPropagation();showPreviewCard('character','${esc(ch.id)}',event)" style="cursor:pointer">${esc(n)}</span>`:`<span class="wiki-tag skill">${esc(n)}</span>`;}).join('')}</div></div>`:''}
     ${customPropHtml?`<div class="wiki-section">${customPropHtml}</div>`:''}
   </div>`;
@@ -369,8 +390,8 @@ function renderExplorerItemDetail(it) {
     <div class="wiki-header"><h2 class="wiki-title">${it.icon||'🎲'} ${esc(it.name)}</h2>
       <div class="wiki-meta">${it.type?`<span class="wiki-badge race">${esc(it.type)}</span>`:''} ${it.rarity?`<span class="wiki-badge gender">${esc(getRarityLabel(it.rarity)||it.rarity)}</span>`:''} ${bp?`<span class="wiki-badge skill">🎲 ${esc(bp.name)}</span>`:''}</div>
     </div>
-    ${it.description?`<div class="wiki-section"><div class="wiki-section-title">描述</div><div class="wiki-value">${esc(it.description)}</div></div>`:''}
-    ${it.effects?`<div class="wiki-section"><div class="wiki-section-title">效果</div><div class="wiki-value">${esc(it.effects)}</div></div>`:''}
+    ${it.description?`<div class="wiki-section"><div class="wiki-section-title">描述</div><div class="wiki-value">${_renderLinkedContent(it.description)}</div></div>`:''}
+    ${it.effects?`<div class="wiki-section"><div class="wiki-section-title">效果</div><div class="wiki-value">${_renderLinkedContent(it.effects)}</div></div>`:''}
     ${customPropHtml?`<div class="wiki-section">${customPropHtml}</div>`:''}
   </div>`;
 }
@@ -387,7 +408,7 @@ function renderExplorerEventDetail(ev) {
     <div class="wiki-header"><h2 class="wiki-title">⚡ ${esc(ev.name||ev.title||'未命名')}</h2>
       <div class="wiki-meta">${ev.time?`<span class="wiki-badge race">${esc(ev.time)}</span>`:''} ${ev.type?`<span class="wiki-badge gender">${esc(ev.type)}</span>`:''}</div>
     </div>
-    ${ev.description?`<div class="wiki-section"><div class="wiki-section-title">描述</div><div class="wiki-value">${esc(ev.description)}</div></div>`:''}
+    ${ev.description?`<div class="wiki-section"><div class="wiki-section-title">描述</div><div class="wiki-value">${_renderLinkedContent(ev.description)}</div></div>`:''}
     ${evChars.length>0?`<div class="wiki-section"><div class="wiki-section-title">关联角色</div><div class="wiki-tags">${evChars.map(n=>{const ch=(state.data.characters||[]).find(c=>c.name===n);return ch?`<span class="wiki-tag skill" onclick="event.stopPropagation();showPreviewCard('character','${esc(ch.id)}',event)" style="cursor:pointer">${esc(n)}</span>`:`<span class="wiki-tag skill">${esc(n)}</span>`;}).join('')}</div></div>`:''}
     ${evFacs.length>0?`<div class="wiki-section"><div class="wiki-section-title">关联势力</div><div class="wiki-tags">${evFacs.map(n=>{const fa=(state.data.factions||[]).find(f=>f.name===n);return fa?`<span class="wiki-tag item" onclick="event.stopPropagation();showPreviewCard('faction','${esc(fa.id)}',event)" style="cursor:pointer">${esc(n)}</span>`:`<span class="wiki-tag item">${esc(n)}</span>`;}).join('')}</div></div>`:''}
   </div>`;
@@ -405,7 +426,7 @@ function renderExplorerEncyclopediaDetail(it) {
     <div class="wiki-header"><h2 class="wiki-title">${it.icon||'📄'} ${esc(it.name)}</h2>
       <div class="wiki-meta">${cat?`<span class="wiki-badge race">${cat.icon||'📁'} ${esc(cat.name)}</span>`:''} ${sub?`<span class="wiki-badge gender">${sub.icon||'📂'} ${esc(sub.name)}</span>`:''}</div>
     </div>
-    ${it.description?`<div class="wiki-section"><div class="wiki-section-title">描述</div><div class="wiki-value">${esc(it.description)}</div></div>`:''}
+    ${it.description?`<div class="wiki-section"><div class="wiki-section-title">描述</div><div class="wiki-value">${_renderLinkedContent(it.description)}</div></div>`:''}
     ${customPropHtml?`<div class="wiki-section">${customPropHtml}</div>`:''}
   </div>`;
 }
@@ -419,7 +440,7 @@ function renderExplorerVolumeDetail(vol, vi) {
     <div class="wiki-header"><h2 class="wiki-title">📖 ${esc(vol.title||'第'+(vi+1)+'卷')}</h2>
       <div class="wiki-meta"><span class="wiki-badge race">大纲卷</span></div>
     </div>
-    ${vol.summary?`<div class="wiki-section"><div class="wiki-section-title">概述</div><div class="wiki-value">${esc(vol.summary)}</div></div>`:''}
+    ${vol.summary?`<div class="wiki-section"><div class="wiki-section-title">概述</div><div class="wiki-value">${_renderLinkedContent(vol.summary)}</div></div>`:''}
     ${chapLinks.length>0?`<div class="wiki-section"><div class="wiki-section-title">章节</div><div class="wiki-tags">${chapLinks.join('')}</div></div>`:''}
   </div>`;
 }
@@ -427,14 +448,14 @@ function renderExplorerVolumeDetail(vol, vi) {
 function renderExplorerChapterDetail(chap, vi, ci) {
   const vol = (state.data.outline||[])[vi];
   const sceneLinks = (chap.scenes||[]).map((sc, si) => {
-    return `<div class="wiki-field"><span class="wiki-label">场景${si+1}</span><span class="wiki-value">${esc(sc.summary||sc.description||'')}</span></div>`;
+    return `<div class="wiki-field"><span class="wiki-label">场景${si+1}</span><span class="wiki-value">${_renderLinkedContent(sc.summary||sc.description||'')}</span></div>`;
   });
   return `<div class="wiki-page" style="padding:20px">
     <button class="btn btn-sm btn-outline" onclick="goBackExplorer()" style="margin-bottom:12px">← 返回</button>
     <div class="wiki-header"><h2 class="wiki-title">📄 ${esc(chap.title||'第'+(ci+1)+'章')}</h2>
       <div class="wiki-meta"><span class="wiki-badge race" onclick="event.stopPropagation();showPreviewCard('outline_volume','vol_${vi}',event)" style="cursor:pointer">📖 ${esc(vol?vol.title||'第'+(vi+1)+'卷':'')}</span></div>
     </div>
-    ${chap.summary?`<div class="wiki-section"><div class="wiki-section-title">概述</div><div class="wiki-value">${esc(chap.summary)}</div></div>`:''}
+    ${chap.summary?`<div class="wiki-section"><div class="wiki-section-title">概述</div><div class="wiki-value">${_renderLinkedContent(chap.summary)}</div></div>`:''}
     ${sceneLinks.length>0?`<div class="wiki-section"><div class="wiki-section-title">场景</div>${sceneLinks.join('')}</div>`:''}
   </div>`;
 }

@@ -89,5 +89,8 @@ let state = {
   editingItem: false,
   editingEvent: false,
   navigationHistory: [],
+  _selectedVariantId: null,
+  _editingVariantId: null,
+  _expandedVariantParent: null,
   _saveTimer: null
 };

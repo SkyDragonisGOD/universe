@@ -1,12 +1,32 @@
-// ============================================================
+﻿// ============================================================
 // 世界生成器 — 弹窗系统
 // ============================================================
 
+function showModalOverlay() {
+  const overlay = $('#modal-overlay');
+  const box = $('#modal-box');
+  overlay.classList.remove('hidden', 'modal-closing');
+  overlay.style.animation = 'none';
+  box.style.animation = 'none';
+  overlay.offsetHeight;
+  box.offsetHeight;
+  overlay.style.animation = '';
+  box.style.animation = '';
+}
+
 function closeModal() {
   const overlay = $('#modal-overlay');
-  overlay.classList.add('hidden');
+  if (overlay.classList.contains('hidden') || overlay.classList.contains('modal-closing')) return;
   overlay.onclick = null;
-  $('#modal-box').innerHTML = '';
+  overlay.classList.add('modal-closing');
+  const box = $('#modal-box');
+  box.addEventListener('animationend', function handler() {
+    box.removeEventListener('animationend', handler);
+    if (!overlay.classList.contains('modal-closing')) return;
+    overlay.classList.remove('modal-closing');
+    overlay.classList.add('hidden');
+    box.innerHTML = '';
+  });
 }
 
 function customPrompt(title, defaultVal) {
@@ -20,7 +40,7 @@ function customPrompt(title, defaultVal) {
         <button class="btn btn-outline" id="custom-prompt-cancel">取消</button>
         <button class="btn btn-primary" id="custom-prompt-ok">确定</button>
       </div>`;
-    overlay.classList.remove('hidden');
+    showModalOverlay();
     const input = $('#custom-prompt-input');
     requestAnimationFrame(() => { input.focus(); input.select(); });
     const done = (val) => { if (done.called) return; done.called = true; closeModal(); resolve(val); };
@@ -42,7 +62,7 @@ function customConfirm(title) {
         <button class="btn btn-outline" id="custom-confirm-cancel">取消</button>
         <button class="btn btn-primary" id="custom-confirm-ok">确定</button>
       </div>`;
-    overlay.classList.remove('hidden');
+    showModalOverlay();
     const done = (val) => { if (done.called) return; done.called = true; closeModal(); resolve(val); };
     done.called = false;
     $('#custom-confirm-ok').onclick = () => done(true);
@@ -74,7 +94,7 @@ function customSelectModal(title, options, selectedIds, maxSelect) {
         <button class="btn btn-outline" id="custom-select-cancel">取消</button>
         <button class="btn btn-primary" id="custom-select-ok">确定</button>
       </div>`;
-    overlay.classList.remove('hidden');
+    showModalOverlay();
     const done = (val) => { if (done.called) return; done.called = true; closeModal(); resolve(val); };
     done.called = false;
     $('#custom-select-ok').onclick = () => {
@@ -113,7 +133,7 @@ function customLinkModal(title, options, existingLinks, descPlaceholder) {
         <button class="btn btn-outline" id="custom-link-cancel">取消</button>
         <button class="btn btn-primary" id="custom-link-ok">确定</button>
       </div>`;
-    overlay.classList.remove('hidden');
+    showModalOverlay();
     modal.querySelectorAll('input[data-ms-id]').forEach(cb => {
       cb.onchange = () => {
         const descInput = modal.querySelector(`input[data-ms-desc="${cb.dataset.msId}"]`);

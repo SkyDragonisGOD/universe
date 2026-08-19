@@ -34,8 +34,21 @@ function renderItems() {
     ${renderRelFilter('itemRelFilter', itemRelDefs)}
     <div id="item-list">${renderBackpackList()}</div></div>
     <div class="item-detail-panel">
-      ${selectedBp ? renderBackpackDetail(selectedBp) : '<div class="empty-state"><div class="icon">🎲</div><p>选择左侧系统查看详情</p></div>'}
+      ${renderItemDetailPanel(selectedBp)}
     </div></div>`;
+}
+
+function renderItemDetailPanel(selectedBp) {
+  if (state._selectedVariantId) {
+    const v = _getVariantById(state._selectedVariantId);
+    if (v && v.parentType === 'item') {
+      if (state._editingVariantId === v.id) return _renderVariantEditPage(v);
+      return _renderVariantDetailPage(v);
+    }
+    state._selectedVariantId = null;
+    state._editingVariantId = null;
+  }
+  return selectedBp ? renderBackpackDetail(selectedBp) : '<div class="empty-state"><div class="icon">🎲</div><p>选择左侧系统查看详情</p></div>';
 }
 
 function renderBackpackList() {
@@ -112,7 +125,7 @@ function renderBackpackDetail(bp) {
         <button class="btn btn-sm btn-danger" onclick="deleteBackpack('${bp.id}')">🗑️ 删除</button>
       </div>
     </div>
-    <p class="text-sm text-muted mb-8">${esc(bp.description||'')}</p>
+    <p class="text-sm text-muted mb-8">${_renderLinkedContent(bp.description||'')}</p>
     ${bpItems.length===0 ? '<div class="empty-state"><div class="icon">📦</div><p>此系统为空，点击"+ 添加物品"添加</p></div>' : ''}
     ${editItemId ? renderBackpackItemEditForm(bpItems.find(i=>i.id===editItemId)) : ''}
     <div id="bp-items-list" style="margin-top:8px">
@@ -123,16 +136,16 @@ function renderBackpackDetail(bp) {
 
 function renderBackpackItemCard(item) {
   const holder = (state.data.characters||[]).find(c=>(c.backpackItems||{})[item.backpackId]?.includes(item.id));
-  return `<div class="bp-item-row" data-item-id="${item.id}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);margin-bottom:4px;background:var(--white);cursor:pointer" onclick="showItemDetail('${item.id}')">
+  return `<div class="bp-item-row" data-item-id="${item.id}" style="display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--border);border-radius:var(--radius-xs);margin-bottom:4px;background:var(--white);cursor:pointer" onclick="showItemDetail('${item.id}')" oncontextmenu="event.preventDefault();_showEntityCtxMenu(event,'item','${esc(item.id)}')">
     <span class="bp-item-drag" style="cursor:grab;font-size:10px;color:var(--warm-gray);user-select:none" title="拖拽排序">⠿</span>
     <span style="font-size:16px">${item.icon||'📦'}</span>
-    <strong style="flex:1;font-size:13px">${esc(item.name)}</strong>
+    <strong style="flex:1;font-size:13px">${esc(item.name)}${_renderVariantDropdown('item',item.id,item.name)}</strong>
     ${item.rarity ? `<span style="color:${getRarityColor(item.rarity)};font-size:11px">[${esc(getRarityLabel(item.rarity))}]</span>` : ''}
     ${item.type ? `<span class="text-xs text-muted">${esc(item.type)}</span>` : ''}
     ${holder ? `<span class="text-xs" style="color:var(--accent)">👤 ${esc(holder.name)}</span>` : ''}
     <button class="btn btn-xs btn-outline" onclick="event.stopPropagation();editBackpackItem('${item.id}')">✏️</button>
     <button class="btn btn-xs btn-danger" onclick="event.stopPropagation();deleteBackpackItem('${item.id}')">×</button>
-  </div>`;
+  </div>${_renderVariantListItems('item',item.id)}`;
 }
 
 function showItemDetail(itemId) {
@@ -154,7 +167,7 @@ function showItemDetail(itemId) {
       ${customPropHtml?`<div>${customPropHtml}</div>`:''}
       ${bp ? `<div><span class="text-xs text-muted">所属系统</span><div style="font-size:13px">🎲 ${esc(bp.name)}</div></div>` : ''}
       ${holder ? `<div><span class="text-xs text-muted">持有者</span><div style="font-size:13px">👤 ${esc(holder.name)}</div></div>` : ''}
-      ${item.description ? `<div><span class="text-xs text-muted">描述</span><div style="font-size:13px;white-space:pre-wrap">${esc(item.description)}</div></div>` : ''}
+      ${item.description ? `<div><span class="text-xs text-muted">描述</span><div style="font-size:13px;white-space:pre-wrap">${_renderLinkedContent(item.description)}</div></div>` : ''}
       ${_normLinks(item.relatedCharacters).length>0?`<div><span class="text-xs text-muted">关联人物</span><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px">${_normLinks(item.relatedCharacters).map(cl=>{const ch=(state.data.characters||[]).find(c=>c.id===cl.id);return ch?`<span class="wiki-tag skill">👤 ${esc(ch.name)}${cl.desc?' <span style="font-size:10px;color:var(--muted)">'+esc(cl.desc)+'</span>':''}</span>`:'';}).join('')}</div></div>`:''}
       ${_normLinks(item.relatedFactions).length>0?`<div><span class="text-xs text-muted">关联势力</span><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px">${_normLinks(item.relatedFactions).map(fl=>{const fa=(state.data.factions||[]).find(f=>f.id===fl.id);return fa?`<span class="wiki-tag item">🏰 ${esc(fa.name)}${fl.desc?' <span style="font-size:10px;color:var(--muted)">'+esc(fl.desc)+'</span>':''}</span>`:'';}).join('')}</div></div>`:''}
       ${_normLinks(item.relatedLocations).length>0?`<div><span class="text-xs text-muted">关联地点</span><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px">${_normLinks(item.relatedLocations).map(ll=>{const loc=(state.data.locations||[]).find(l=>l.id===ll.id);return loc?`<span class="wiki-tag skill">📍 ${esc(loc.name)}${ll.desc?' <span style="font-size:10px;color:var(--muted)">'+esc(ll.desc)+'</span>':''}</span>`:'';}).join('')}</div></div>`:''}
@@ -162,11 +175,12 @@ function showItemDetail(itemId) {
       ${_normLinks(item.relatedItems).length>0?`<div><span class="text-xs text-muted">关联物品</span>${(state.data.worldBackpacks||[]).map(bp=>{const bpLinks=_normLinks(item.relatedItems).filter(il=>{const it=(state.data.items||[]).find(i=>i.id===il.id);return it&&it.backpackId===bp.id;});if(bpLinks.length===0)return '';return `<div style="margin-top:2px"><span style="font-size:11px;color:var(--muted)">🎲 ${esc(bp.name)}</span><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px">${bpLinks.map(il=>{const it=(state.data.items||[]).find(i=>i.id===il.id);return it?`<span class="wiki-tag item">${it.icon||'📦'} ${esc(it.name)}${il.desc?' <span style="font-size:10px;color:var(--muted)">'+esc(il.desc)+'</span>':''}</span>`:'';}).join('')}</div></div>`;}).join('')}</div>`:''}
       ${_normLinks(item.relatedVolumes).length>0?`<div><span class="text-xs text-muted">📑 关联卷</span><div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:2px">${_normLinks(item.relatedVolumes).map(vl=>{const vol=(state.data.outline||[]).find((v,i)=>i===parseInt(vl.id)||v.id===vl.id);return vol?`<span class="wiki-tag item">📖 ${esc(vol.title||'未命名卷')}</span>`:'';}).join('')}</div></div>`:''}
     </div>
+    ${_renderVariantWikiSection('item',item.id)}
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal()">关闭</button>
       <button class="btn btn-primary" onclick="closeModal();editBackpackItem('${item.id}')">✏️ 编辑</button>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
 }
 
@@ -241,6 +255,7 @@ function renderBackpackItemEditForm(item) {
         ${_normLinks(item.relatedVolumes).length>0?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${_normLinks(item.relatedVolumes).map(vl=>{const vol=(state.data.outline||[]).find((v,i)=>i===parseInt(vl.id)||v.id===vl.id);return vol?`<span class="wiki-tag item">📖 ${esc(vol.title||'未命名卷')}<button class="btn btn-xs btn-icon btn-danger" style="font-size:8px;margin-left:2px" onclick="removeItemVolume('${esc(item.id)}','${esc(vl.id)}')">×</button></span>`:'';}).join('')}</div>`:''}
       </div>
     </div>
+    ${_renderVariantSection('item',item.id,item.name)}
   </div>`;
 }
 
@@ -260,7 +275,7 @@ function saveBackpackItemEdit() {
   editItemId = null;
   _itemIsNew = false;
   autoSave();
-  renderTabContent();
+  state._forceAnimate=true; state._animateScope='detail'; renderTabContent();
 }
 
 function setItemCustomProp(propId, value) {
@@ -346,7 +361,7 @@ function openEmojiPicker() {
       <button class="btn btn-outline" onclick="closeModal()">取消</button>
       <button class="btn btn-primary" id="emoji-ok-btn">确定</button>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   $('#emoji-ok-btn').onclick = () => { selectEmoji(($('#emoji-custom-input')||{}).value || '📦'); };
   overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
 }
@@ -375,7 +390,7 @@ function openBpIconPicker(bpId) {
       <button class="btn btn-outline" onclick="closeModal()">取消</button>
       <button class="btn btn-primary" id="bp-icon-ok-btn">确定</button>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   $('#bp-icon-ok-btn').onclick = () => { selectBpIcon(bpId, ($('#bp-icon-custom-input')||{}).value || '🎲'); };
   overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
 }
@@ -397,9 +412,9 @@ function cancelBackpackItemEdit() {
   }
   editItemId = null;
   _itemIsNew = false;
-  renderTabContent();
+  state._forceAnimate=true; state._animateScope='detail'; renderTabContent();
 }
-function editBackpackItem(id) { editItemId = id; _itemIsNew = false; renderTabContent(); }
+function editBackpackItem(id) { editItemId = id; _itemIsNew = false; state._forceAnimate=true; state._animateScope='detail'; renderTabContent(); }
 
 async function addBackpack() {
   const name = await customPrompt('系统名称', '');
@@ -462,10 +477,14 @@ function bindItemListEvents() {
       if(ev.target.closest('.drag-handle')) return;
       const bpId = item.dataset.bpId;
       const itemId = item.dataset.itemId;
+      state._selectedVariantId=null;
+      state._editingVariantId=null;
       if (itemId && bpId) {
         state.selectedItemId=bpId;
         editItemId=null;
         state.itemSearch='';
+        state._forceAnimate=true;
+        state._animateScope='detail';
         renderTabContent();
         setTimeout(()=>{
           const el = document.querySelector(`[data-item-id="${itemId}"]`);
@@ -474,6 +493,8 @@ function bindItemListEvents() {
       } else {
         state.selectedItemId=bpId;
         editItemId=null;
+        state._forceAnimate=true;
+        state._animateScope='detail';
         renderTabContent();
       }
     };

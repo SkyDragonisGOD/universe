@@ -358,7 +358,7 @@ function openCustomPropModal(editIndex) {
   let _modalOptions = initOptions.map(o => typeof o === 'string' ? { name: o, description: '' } : { ...o });
 
   modal.innerHTML = buildForm();
-  overlay.classList.remove('hidden');
+  showModalOverlay();
 
   const typeCardActive = 'display:block;padding:12px 14px;border:2px solid var(--black);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;background:var(--light-gray);color:var(--text);text-align:center;transition:all .15s';
   const typeCardInactive = 'display:block;padding:12px 14px;border:2px solid var(--border);border-radius:var(--radius-sm);cursor:pointer;font-size:13px;background:var(--white);color:var(--text);text-align:center;transition:all .15s';

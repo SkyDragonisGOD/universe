@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // 世界生成器 — 属性定义系统
 // ============================================================
 
@@ -83,6 +83,16 @@ function ensurePropertyDefs() {
       }
     });
   });
+  (state.data.categories || []).forEach(c => {
+    if (c.systemLocked) {
+      const lockedNames = SYSTEM_LOCKED_CATEGORIES[c.type] || [];
+      if (!lockedNames.includes(c.name)) {
+        delete c.systemLocked;
+        if (c.description === '系统常驻') c.description = '';
+        needSave = true;
+      }
+    }
+  });
   (state.data.characters || []).forEach(c => {
     if (typeof c.race === 'string') {
       c.race = c.race && c.race !== '未知' ? [c.race] : [];
@@ -150,7 +160,7 @@ function openPropOptionDetail(title, name, description, type, onEdit) {
         <button class="btn btn-outline" onclick="closeModal()">关闭</button>
       </div>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
 }
 
@@ -178,6 +188,6 @@ function openCategoryDetail(type, name) {
         <button class="btn btn-outline" onclick="closeModal()">关闭</button>
       </div>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
 }

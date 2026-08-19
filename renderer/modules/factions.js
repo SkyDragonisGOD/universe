@@ -29,10 +29,19 @@ function renderFactionList() {
   ];
   const filtered = factions.filter(f => matchRelFilter(f, 'factionRelFilter', factionRelMatchDefs)).filter(f => matchSearch(f.name, 'factionSearch'));
   if (filtered.length===0) return '<div class="empty-state"><div class="icon">🏰</div><p>暂无势力</p></div>';
-  return filtered.map(f=>`<div class="faction-list-item${state.selectedFactionId===f.id?' selected':''}" data-faction-id="${f.id}"><span class="drag-handle" style="cursor:grab;font-size:10px;color:var(--muted);user-select:none">⠿</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}</span><span class="tag" style="background:${f.color||'#888'}">${esc(f.type||'')}</span></div>`).join('');
+  return filtered.map(f=>`<div class="faction-list-item${state.selectedFactionId===f.id&&!state._selectedVariantId?' selected':''}" data-faction-id="${f.id}" oncontextmenu="event.preventDefault();_showEntityCtxMenu(event,'faction','${esc(f.id)}')"><span class="drag-handle" style="cursor:grab;font-size:10px;color:var(--muted);user-select:none">⠿</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(f.name)}${_renderVariantDropdown('faction',f.id,f.name)}</span><span class="tag" style="background:${f.color||'#888'}">${esc(f.type||'')}</span></div>${_renderVariantListItems('faction',f.id)}`).join('');
 }
 
 function renderFactionDetail() {
+  if (state._selectedVariantId) {
+    const v = _getVariantById(state._selectedVariantId);
+    if (v && v.parentType === 'faction' && v.parentId === state.selectedFactionId) {
+      if (state._editingVariantId === v.id) return _renderVariantEditPage(v);
+      return _renderVariantDetailPage(v);
+    }
+    state._selectedVariantId = null;
+    state._editingVariantId = null;
+  }
   const f = (state.data.factions||[]).find(fa=>fa.id===state.selectedFactionId);
   if (!f) return '<div class="empty-state"><div class="icon">👆</div><p>选择左侧势力查看详情</p></div>';
   if (state.editingFaction) return renderFactionEditForm(f);
@@ -62,13 +71,14 @@ function renderFactionWikiView(f) {
       ${hqNames.length>0?`<div class="wiki-field"><span class="wiki-label">总部/据点</span><div class="wiki-tags">${hqLinks.map(hl=>{const loc=locations.find(l=>l.id===hl.id||l.name===hl.id);const descArg=hl.desc?`, '${jsStr(hl.desc)}'`:'';return loc?`<span class="wiki-tag skill" onclick="showPreviewCard('location','${esc(loc.id)}',event${descArg})" style="cursor:pointer">${esc(loc.name)}</span>`:`<span class="wiki-tag skill">${esc(hl.id)}</span>`;}).join('')}</div></div>`:''}
       ${customPropHtml?`<div style="margin-top:4px">${customPropHtml}</div>`:''}
     </div>
-    ${f.description?`<div class="wiki-section"><div class="wiki-section-title">描述</div><div class="wiki-value">${esc(f.description)}</div></div>`:''}
-    ${f.goals?`<div class="wiki-section"><div class="wiki-section-title">目标/宗旨</div><div class="wiki-value">${esc(f.goals)}</div></div>`:''}
+    ${f.description?`<div class="wiki-section"><div class="wiki-section-title">描述</div><div class="wiki-value">${_renderLinkedContent(f.description)}</div></div>`:''}
+    ${f.goals?`<div class="wiki-section"><div class="wiki-section-title">目标/宗旨</div><div class="wiki-value">${_renderLinkedContent(f.goals)}</div></div>`:''}
     ${memberNames.length>0?`<div class="wiki-section"><div class="wiki-section-title">成员</div><div class="wiki-tags">${_normLinks(f.members).map(ml=>{const ch=characters.find(c=>c.id===ml.id||c.name===ml.id);const descArg=ml.desc?`, '${jsStr(ml.desc)}'`:'';return ch?`<span class="wiki-tag skill" onclick="showPreviewCard('character','${esc(ch.id)}',event${descArg})" style="cursor:pointer">${esc(ch.name)}</span>`:`<span class="wiki-tag skill">${esc(ml.id)}</span>`;}).join('')}</div></div>`:''}
     ${rivalNames.length>0?`<div class="wiki-section"><div class="wiki-section-title">敌对势力</div><div class="wiki-tags">${_normLinks(f.rivals).map(rl=>{const rf=allFactions.find(fa=>fa.id===rl.id);const descArg=rl.desc?`, '${jsStr(rl.desc)}'`:'';return rf?`<span class="wiki-tag item" onclick="showPreviewCard('faction','${esc(rf.id)}',event${descArg})" style="cursor:pointer;background:#fde8e8;color:#9b2c2c">${esc(rf.name)}</span>`:`<span class="wiki-tag item" style="background:#fde8e8;color:#9b2c2c">${esc(rl.id)}</span>`;}).join('')}</div></div>`:''}
     ${allyNames.length>0?`<div class="wiki-section"><div class="wiki-section-title">盟友势力</div><div class="wiki-tags">${_normLinks(f.allies).map(al=>{const af=allFactions.find(fa=>fa.id===al.id);const descArg=al.desc?`, '${jsStr(al.desc)}'`:'';return af?`<span class="wiki-tag item" onclick="showPreviewCard('faction','${esc(af.id)}',event${descArg})" style="cursor:pointer">${esc(af.name)}</span>`:`<span class="wiki-tag item">${esc(al.id)}</span>`;}).join('')}</div></div>`:''}
     ${_normLinks(f.relatedEvents).length>0?`<div class="wiki-section"><div class="wiki-section-title">关联事件</div><div class="wiki-tags">${_normLinks(f.relatedEvents).map(el=>{const ev=(state.data.timeline||[]).find(e=>e.id===el.id);const descArg=el.desc?`, '${jsStr(el.desc)}'`:'';return ev?`<span class="wiki-tag item" onclick="showPreviewCard('event','${esc(ev.id)}',event${descArg})" style="cursor:pointer">${esc(ev.name)}</span>`:`<span class="wiki-tag item">${esc(el.id)}</span>`;}).join('')}</div></div>`:''}
     ${_normLinks(f.relatedVolumes).length>0?`<div class="wiki-section"><div class="wiki-section-title">📑 关联卷</div><div class="wiki-tags">${_normLinks(f.relatedVolumes).map(vl=>{const vol=(state.data.outline||[]).find((v,i)=>i===parseInt(vl.id)||v.id===vl.id);return vol?`<span class="wiki-tag item">📖 ${esc(vol.title||'未命名卷')}</span>`:`<span class="wiki-tag item">${esc(vl.id)}</span>`;}).join('')}</div></div>`:''}
+    ${_renderVariantWikiSection('faction',f.id)}
   </div>
   <div class="detail-sticky-bar">
     <button class="btn btn-sm btn-outline" onclick="if(state.navigationHistory.length>0)goBack();else{state.selectedFactionId=null;renderTabContent()}">← 返回</button>
@@ -146,6 +156,8 @@ function renderFactionEditForm(f) {
         ${_normLinks(f.relatedVolumes).length>0?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${_normLinks(f.relatedVolumes).map(vl=>{const vol=(state.data.outline||[]).find((v,i)=>i===parseInt(vl.id)||v.id===vl.id);return vol?`<span class="wiki-tag item">📖 ${esc(vol.title||'未命名卷')}<button class="btn btn-xs btn-icon btn-danger" style="font-size:8px;margin-left:2px" onclick="removeFactionVolume('${esc(vl.id)}')">×</button></span>`:'';}).join('')}</div>`:''}
       </div>
     </div>
+
+    ${_renderVariantSection('faction',f.id,f.name)}
   </div>
   <div class="detail-sticky-bar">
     <div></div>
@@ -164,27 +176,27 @@ function startFactionEdit() {
   _factionIsNew = false;
   state.editingFaction = true; state._forceAnimate=true; state._animateScope='detail'; renderTabContent();
 }
-function saveFactionEdit() { _factionEditSnapshot = null; _factionIsNew = false; state.editingFaction = false; autoSave(); renderTabContent(); }
+function saveFactionEdit() { _factionEditSnapshot = null; _factionIsNew = false; state.editingFaction = false; autoSave(); state._forceAnimate=true; state._animateScope='detail'; renderTabContent(); }
 function cancelFactionEdit() {
   if (_factionIsNew) {
     state.data.factions = (state.data.factions||[]).filter(fa=>fa.id!==state.selectedFactionId);
     state.selectedFactionId = null;
     _factionIsNew = false;
     _factionEditSnapshot = null;
-    autoSave(); renderTabContent(); return;
+    autoSave(); state._forceAnimate=true; state._animateScope='detail'; renderTabContent(); return;
   }
   if (_factionEditSnapshot) {
     const f = (state.data.factions||[]).find(fa=>fa.id===state.selectedFactionId);
     if (f) Object.assign(f, _factionEditSnapshot);
     _factionEditSnapshot = null;
   }
-  state.editingFaction = false; renderTabContent();
+  state.editingFaction = false; state._forceAnimate=true; state._animateScope='detail'; renderTabContent();
 }
 
 function setupFactions() {
   registerSearchTarget('factionSearch','faction-list',renderFactionList);
   const list = $('#faction-list');
-  if (list) { list.querySelectorAll('.faction-list-item').forEach(item=>{item.onclick=(ev)=>{if(ev.target.closest('.drag-handle'))return;state.selectedFactionId=item.dataset.factionId;state.editingFaction=false;state._forceAnimate=true;state._animateScope='detail';renderTabContent();};});}
+  if (list) { list.querySelectorAll('.faction-list-item').forEach(item=>{item.onclick=(ev)=>{if(ev.target.closest('.drag-handle'))return;state.selectedFactionId=item.dataset.factionId;state.editingFaction=false;state._selectedVariantId=null;state._editingVariantId=null;state._forceAnimate=true;state._animateScope='detail';renderTabContent();};});}
   setupDragSort({
     containerId: 'faction-list',
     itemSelector: '.faction-list-item',

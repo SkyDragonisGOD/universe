@@ -154,7 +154,12 @@ function _mapShowDetail(type, id) {
   } else if (type === 'territory') {
     html = _mapRenderTerritoryDetail(id);
   }
-  if (html) content.innerHTML = html;
+  if (html) {
+    content.innerHTML = html;
+    if (typeof gsap !== 'undefined') {
+      gsap.fromTo(content, { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, ease: 'power3.out' });
+    }
+  }
 }
 
 let _mapTerritoryLocOverride = {};
@@ -252,13 +257,24 @@ function _mapBackToPrevState() {
   const area = $('#map-stats-area');
   if (!area) return;
   
+  let content = area.querySelector('.fmap-stats-content');
+  if (!content) return;
+
+  if (typeof gsap !== 'undefined') {
+    gsap.to(content, { y: -10, opacity: 0, duration: 0.15, ease: 'power2.in', onComplete: () => {
+      _mapBackRestore(content);
+      gsap.fromTo(content, { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, ease: 'power3.out' });
+    }});
+  } else {
+    _mapBackRestore(content);
+  }
+}
+
+function _mapBackRestore(content) {
   if (_mapPrevViewState && _mapPrevViewState.type === 'stats') {
     _mapRefreshStats();
   } else if (_mapPrevViewState && _mapPrevViewState.content) {
-    let content = area.querySelector('.fmap-stats-content');
-    if (content) {
-      content.innerHTML = _mapPrevViewState.content;
-    }
+    if (content) content.innerHTML = _mapPrevViewState.content;
   } else {
     _mapRefreshStats();
   }
@@ -267,7 +283,18 @@ function _mapBackToPrevState() {
 
 function _mapBackToStats() {
   _mapPrevViewState = null;
-  _mapRefreshStats();
+  const area = $('#map-stats-area');
+  if (!area) return;
+  const content = area.querySelector('.fmap-stats-content');
+  if (!content) { _mapRefreshStats(); return; }
+  if (typeof gsap !== 'undefined') {
+    gsap.to(content, { y: -10, opacity: 0, duration: 0.15, ease: 'power2.in', onComplete: () => {
+      _mapRefreshStats();
+      gsap.fromTo(content, { y: 20, opacity: 0 }, { y: 0, opacity: 1, duration: 0.35, ease: 'power3.out' });
+    }});
+  } else {
+    _mapRefreshStats();
+  }
 }
 
 function _mapRenderStats() {

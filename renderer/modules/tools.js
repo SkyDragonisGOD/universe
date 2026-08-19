@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // 世界生成器 — 工具 (资源库存/备份)
 // 依赖: core/state.js, core/utils.js, core/modal.js, core/properties.js
 // ============================================================
@@ -74,7 +74,7 @@ function openEmojiLibManager() {
       <button class="btn btn-outline" onclick="_emojiLibManagerCancel()">取消</button>
       <button class="btn btn-primary" onclick="_emojiLibManagerSave()">💾 保存</button>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   overlay.onclick = (e) => { if (e.target === overlay) _emojiLibManagerCancel(); };
   if (!state._emojiLibBackup) state._emojiLibBackup = JSON.parse(JSON.stringify(lib));
   if (!state._emojiCatOrdersBackup) state._emojiCatOrdersBackup = JSON.parse(JSON.stringify(state.data.emojiCatOrders || {}));
@@ -307,7 +307,7 @@ function renderResourceList() {
   if (q) filtered = filtered.filter(r => (r.title||'').toLowerCase().includes(q) || (r.category||'').toLowerCase().includes(q) || (r.note||'').toLowerCase().includes(q));
   if (filtered.length === 0) return '<div class="empty-state"><div class="icon">📦</div><p>暂无资源</p></div>';
   return filtered.map(r => {
-    const icon = r.imageData ? '🖼️' : (r.category === '关系图' ? '🕸️' : '📄');
+    const icon = r.imageData ? '🖼️' : (r.category === '关系图' ? '🕸️' : r.category === '世界地图' ? '🗺️' : '📄');
     const isSelected = state.selectedResourceId === r.id;
     return `<div class="char-list-item${isSelected?' selected':''}" data-res-id="${r.id}" onclick="selectResource('${esc(r.id)}')">
       <span style="flex-shrink:0">${icon}</span>
@@ -319,11 +319,7 @@ function renderResourceList() {
 
 function selectResource(id) {
   state.selectedResourceId = id;
-  const list = $('#resource-list');
-  if (list) list.innerHTML = renderResourceList();
-  const detail = $('#resource-detail');
-  const r = (state.data.resources||[]).find(res=>res.id===id);
-  if (detail) detail.innerHTML = r ? renderResourceDetail(r) : '<div class="empty-state"><div class="icon">📦</div><p>选择左侧资源查看详情</p></div>';
+  state._forceAnimate=true; state._animateScope='detail'; renderTabContent();
 }
 
 function _renderResourceLinkedEntries(r) {
@@ -545,7 +541,7 @@ async function addResource() {
       <button class="btn btn-outline" id="res-cancel">取消</button>
       <button class="btn btn-primary" id="res-ok">确定</button>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   return new Promise((resolve) => {
     const finish = (val) => { closeModal(); resolve(val); };
     $('#res-ok').onclick = async () => {
@@ -593,7 +589,7 @@ async function editResource(id) {
       <button class="btn btn-outline" id="res-edit-cancel">取消</button>
       <button class="btn btn-primary" id="res-edit-ok">保存</button>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   return new Promise((resolve) => {
     const finish = (val) => { closeModal(); resolve(val); };
     $('#res-edit-ok').onclick = async () => {
@@ -663,10 +659,10 @@ function _renderImageViewer() {
       <button class="btn btn-xs btn-outline" onclick="closeModal()">关闭</button>
     </div>
     <div id="image-viewer-scroll" style="overflow:hidden;max-height:80vh;display:flex;justify-content:center;align-items:center;cursor:grab;position:relative">
-      <img id="image-viewer-img" src="${esc(_imageViewerSrc)}" style="transform:translate(${_imageViewerPanX}px,${_imageViewerPanY}px) scale(${_imageViewerZoom});transform-origin:center center;max-width:none;max-height:none;border-radius:var(--radius-sm);pointer-events:none;user-select:none">
+      <img id="image-viewer-img" src="${esc(_imageViewerSrc)}" style="transform:translate(${_imageViewerPanX}px,${_imageViewerPanY}px) scale(${_imageViewerZoom});transform-origin:center center;max-width:100%;max-height:80vh;object-fit:contain;border-radius:var(--radius-sm);pointer-events:none;user-select:none">
     </div>
   </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
 
   const scrollArea = document.getElementById('image-viewer-scroll');

@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // 世界生成器 — 事件系统
 // 依赖: core/state.js, core/utils.js, core/modal.js, core/glossary.js, core/properties.js, core/ai.js
 // ============================================================
@@ -84,21 +84,30 @@ function renderEventList() {
   events = events.filter(e => matchSearch(e.name || e.title, 'eventSearch'));
   if (events.length === 0) return '<div class="empty-state"><div class="icon">⚡</div><p>暂无事件</p></div>';
   return events.map((e, i) => {
-    const sel = state.selectedEventId === e.id;
+    const sel = state.selectedEventId === e.id && !state._selectedVariantId;
     const desc = (e.description || e.cause || '').substring(0, 60);
     const charCount = _normLinks(e.characters).length;
     const locCount = _normLinks(e.locations).length;
-    return `<div class="location-card${sel ? ' selected' : ''}" data-eid="${e.id}" style="cursor:pointer">
-      <div class="flex-between"><div style="display:flex;align-items:center;gap:6px"><span class="drag-handle" style="cursor:grab;font-size:10px;color:var(--muted);user-select:none">⠿</span><span class="loc-name">${esc(e.name || e.title || '未命名事件')}</span></div>
+    return `<div class="location-card${sel ? ' selected' : ''}" data-eid="${e.id}" style="cursor:pointer" oncontextmenu="event.preventDefault();_showEntityCtxMenu(event,'event','${esc(e.id)}')">
+      <div class="flex-between"><div style="display:flex;align-items:center;gap:6px"><span class="drag-handle" style="cursor:grab;font-size:10px;color:var(--muted);user-select:none">⠿</span><span class="loc-name">${esc(e.name || e.title || '未命名事件')}${_renderVariantDropdown('event',e.id,e.name||e.title)}</span></div>
         <div class="flex-gap"><button class="btn btn-xs btn-icon btn-danger" style="font-size:10px" onclick="event.stopPropagation();deleteTimelineEvent('${e.id}')">×</button></div></div>
       <div class="loc-desc">${esc(e.time || '')}${e.type ? ' · ' + esc(e.type) : ''}</div>
       ${desc ? `<div style="font-size:12px;color:var(--dark-gray);margin-top:4px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden">${esc(desc)}${(e.description||e.cause||'').length>60?'...':''}</div>` : ''}
       ${(charCount > 0 || locCount > 0) ? `<div style="display:flex;gap:4px;margin-top:4px;font-size:11px;color:var(--warm-gray)">${charCount > 0 ? `<span>👤${charCount}</span>` : ''}${locCount > 0 ? `<span>📍${locCount}</span>` : ''}</div>` : ''}
-    </div>`;
+    </div>${_renderVariantListItems('event',e.id)}`;
   }).join('');
 }
 
 function renderEventDetail() {
+  if (state._selectedVariantId) {
+    const v = _getVariantById(state._selectedVariantId);
+    if (v && v.parentType === 'event' && v.parentId === state.selectedEventId) {
+      if (state._editingVariantId === v.id) return _renderVariantEditPage(v);
+      return _renderVariantDetailPage(v);
+    }
+    state._selectedVariantId = null;
+    state._editingVariantId = null;
+  }
   const e = (state.data.timeline || []).find(ev => ev.id === state.selectedEventId);
   if (!e) return '';
   if (state.editingEvent) return renderEventEditForm(e);
@@ -146,10 +155,10 @@ function renderEventWikiView(e) {
       ${customPropHtml?`<div style="margin-top:4px">${customPropHtml}</div>`:''}
     </div>
     ${ePrereqs.length > 0 ? `<div class="wiki-section"><div class="wiki-section-title">前置事件</div><div class="wiki-tags">${ePrereqs.map(p => linkTag(p, 'event')).join('')}</div></div>` : ''}
-    ${e.cause ? `<div class="wiki-section"><div class="wiki-section-title">起因</div><div class="wiki-value">${esc(e.cause)}</div></div>` : ''}
-    ${(e.description || subEventItems.length > 0) ? `<div class="wiki-section"><div class="wiki-section-title">经过</div>${e.description ? `<div class="wiki-value" style="margin-bottom:8px">${esc(e.description)}</div>` : ''}${subEventItems.length > 0 ? `<div style="border-left:2px solid var(--border);margin-left:8px;padding-left:12px">${subEventItems.map(se => `<div style="margin-bottom:6px;padding:6px 10px;background:var(--bg-alt);border-radius:var(--radius-xs);cursor:pointer" onclick="navigateToEvent('${esc(se.id)}')"><strong style="font-size:13px">${esc(se.name || '子事件')}</strong>${se._desc ? `<p style="font-size:12px;color:var(--dark-gray);margin-top:2px">${esc(se._desc)}</p>` : ''}</div>`).join('')}</div>` : ''}</div>` : ''}
-    ${e.outcome ? `<div class="wiki-section"><div class="wiki-section-title">结局</div><div class="wiki-value">${esc(e.outcome)}</div></div>` : ''}
-    ${e.aftermath ? `<div class="wiki-section"><div class="wiki-section-title">后续影响</div><div class="wiki-value">${esc(e.aftermath)}</div></div>` : ''}
+    ${e.cause ? `<div class="wiki-section"><div class="wiki-section-title">起因</div><div class="wiki-value">${_renderLinkedContent(e.cause)}</div></div>` : ''}
+    ${(e.description || subEventItems.length > 0) ? `<div class="wiki-section"><div class="wiki-section-title">经过</div>${e.description ? `<div class="wiki-value" style="margin-bottom:8px">${_renderLinkedContent(e.description)}</div>` : ''}${subEventItems.length > 0 ? `<div style="border-left:2px solid var(--border);margin-left:8px;padding-left:12px">${subEventItems.map(se => `<div style="margin-bottom:6px;padding:6px 10px;background:var(--bg-alt);border-radius:var(--radius-xs);cursor:pointer" onclick="navigateToEvent('${esc(se.id)}')"><strong style="font-size:13px">${esc(se.name || '子事件')}</strong>${se._desc ? `<p style="font-size:12px;color:var(--dark-gray);margin-top:2px">${esc(se._desc)}</p>` : ''}</div>`).join('')}</div>` : ''}</div>` : ''}
+    ${e.outcome ? `<div class="wiki-section"><div class="wiki-section-title">结局</div><div class="wiki-value">${_renderLinkedContent(e.outcome)}</div></div>` : ''}
+    ${e.aftermath ? `<div class="wiki-section"><div class="wiki-section-title">后续影响</div><div class="wiki-value">${_renderLinkedContent(e.aftermath)}</div></div>` : ''}
     ${eFollowUps.length > 0 ? `<div class="wiki-section"><div class="wiki-section-title">后续事件</div><div class="wiki-tags">${eFollowUps.map(f => linkTag(f, 'event')).join('')}</div></div>` : ''}
     <div class="wiki-section"><div class="wiki-section-title">关联</div>
       ${eChars.length > 0 ? `<div style="margin-bottom:4px"><span class="text-xs text-muted">人物</span><div class="wiki-tags">${eChars.map(ch => linkTag(ch, 'character')).join('')}</div></div>` : ''}
@@ -159,6 +168,7 @@ function renderEventWikiView(e) {
       ${_normLinks(e.relatedVolumes).length>0?`<div style="margin-bottom:4px"><span class="text-xs text-muted">📑 关联卷</span><div class="wiki-tags">${_normLinks(e.relatedVolumes).map(vl=>{const vol=(state.data.outline||[]).find((v,i)=>i===parseInt(vl.id)||v.id===vl.id);return vol?`<span class="wiki-tag item">📖 ${esc(vol.title||'未命名卷')}</span>`:`<span class="wiki-tag item">${esc(vl.id)}</span>`;}).join('')}</div></div>`:''}
       ${eChars.length === 0 && eFactions.length === 0 && eLocs.length === 0 && eItems.length === 0 && _normLinks(e.relatedVolumes).length===0 ? '<div class="text-xs text-muted">暂无关联，点击编辑添加</div>' : ''}
     </div>
+    ${_renderVariantWikiSection('event',e.id)}
   </div>
   <div class="detail-sticky-bar">
     <div class="flex-gap">
@@ -281,6 +291,8 @@ function renderEventEditForm(e) {
       const val = e.customProps[key] || '';
       return renderCustomPropField(prop, val, `setEventCustomProp('${prop.id}',this.value)`);
     }).join('')}
+
+    ${_renderVariantSection('event',e.id,e.name||e.title)}
   </div>
   <div class="detail-sticky-bar">
     <div></div>
@@ -307,7 +319,7 @@ function saveEventEdit() {
   _eventIsNew = false;
   state.editingEvent = false;
   autoSave();
-  renderTabContent();
+  state._forceAnimate=true; state._animateScope='detail'; renderTabContent();
 }
 function cancelEventEdit() {
   if (_eventIsNew) {
@@ -316,7 +328,7 @@ function cancelEventEdit() {
     _eventIsNew = false;
     _eventEditSnapshot = null;
     autoSave();
-    renderTabContent();
+    state._forceAnimate=true; state._animateScope='detail'; renderTabContent();
     return;
   }
   if (_eventEditSnapshot) {
@@ -325,7 +337,7 @@ function cancelEventEdit() {
     _eventEditSnapshot = null;
   }
   state.editingEvent = false;
-  renderTabContent();
+  state._forceAnimate=true; state._animateScope='detail'; renderTabContent();
 }
 
 function updateEvent(key, value) {
@@ -569,7 +581,7 @@ async function openEventItemModal() {
       <button class="btn btn-outline" id="custom-link-cancel">取消</button>
       <button class="btn btn-primary" id="custom-link-ok">确定</button>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
 
   modal.querySelectorAll('.bp-header').forEach(hdr => {
     hdr.onclick = () => {
@@ -650,6 +662,8 @@ function setupEvents() {
         if (ev.target.closest('.drag-handle') || ev.target.closest('button')) return;
         state.selectedEventId = c.dataset.eid;
         state.editingEvent = false;
+        state._selectedVariantId = null;
+        state._editingVariantId = null;
         state._forceAnimate = true;
         state._animateScope = 'detail';
         renderTabContent();

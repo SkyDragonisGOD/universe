@@ -76,6 +76,7 @@ function _renderOvStats() {
 
 function toggleOvEdit() {
   state._ovEditing = !state._ovEditing;
+  state._forceAnimate = true;
   renderTabContent();
 }
 

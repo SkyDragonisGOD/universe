@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // 世界生成器 — 词条 & 类别系统
 // ============================================================
 
@@ -11,7 +11,7 @@ const CAT_TYPE_LABELS = {
   resourceType: '📦 资源类别'
 };
 
-const SYSTEM_LOCKED_CATEGORIES = { resourceType: ['关系图', '头像'] };
+const SYSTEM_LOCKED_CATEGORIES = { resourceType: ['关系图', '世界地图'] };
 
 function collectGlossary(type) {
   const d = state.data;
@@ -107,7 +107,7 @@ function openCategoryManager() {
   const modal = $('#modal-box');
   state._catSelected = null;
   renderCategoryManagerUI();
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
 }
 

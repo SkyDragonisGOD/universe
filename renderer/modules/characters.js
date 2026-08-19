@@ -34,10 +34,19 @@ function renderCharList() {
   filtered = filtered.filter(c => matchRelFilter(c, 'charRelFilter', charRelMatchDefs));
   filtered = filtered.filter(c => matchSearch(c.name, 'charSearch'));
   if (filtered.length===0) return '<div class="empty-state"><div class="icon">👤</div><p>暂无角色</p></div>';
-  return filtered.map(c=>`<div class="char-list-item${state.selectedCharacterId===c.id?' selected':''}" data-char-id="${c.id}"><span class="drag-handle" style="cursor:grab;font-size:10px;color:var(--muted);user-select:none">⠿</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}</span><span class="char-role">${esc(c.role||'')}</span></div>`).join('');
+  return filtered.map(c=>`<div class="char-list-item${state.selectedCharacterId===c.id&&!state._selectedVariantId?' selected':''}" data-char-id="${c.id}" oncontextmenu="event.preventDefault();_showEntityCtxMenu(event,'character','${esc(c.id)}')"><span class="drag-handle" style="cursor:grab;font-size:10px;color:var(--muted);user-select:none">⠿</span><span style="flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(c.name)}${_renderVariantDropdown('character',c.id,c.name)}</span><span class="char-role">${esc(c.role||'')}</span></div>${_renderVariantListItems('character',c.id)}`).join('');
 }
 
 function renderCharDetail() {
+  if (state._selectedVariantId) {
+    const v = _getVariantById(state._selectedVariantId);
+    if (v && v.parentType === 'character' && v.parentId === state.selectedCharacterId) {
+      if (state._editingVariantId === v.id) return _renderVariantEditPage(v);
+      return _renderVariantDetailPage(v);
+    }
+    state._selectedVariantId = null;
+    state._editingVariantId = null;
+  }
   const c = (state.data.characters||[]).find(ch=>ch.id===state.selectedCharacterId);
   if (!c) return '<div class="empty-state"><div class="icon">👆</div><p>选择左侧角色查看详情</p></div>';
   if (state.editingCharacter) return renderCharEditForm(c);
@@ -91,7 +100,7 @@ function renderCharWikiView(c) {
           if (!c[d.key] || !c[d.key].trim()) return '';
           return `<div class="wiki-field">
             <span class="wiki-label">${d.label}</span>
-            <span class="wiki-value">${esc(c[d.key])}</span>
+            <span class="wiki-value">${_renderLinkedContent(c[d.key])}</span>
           </div>`;
         }).join('')}
       </div>`;
@@ -119,6 +128,7 @@ function renderCharWikiView(c) {
     }).join('')}
     ${_normLinks(c.relatedEvents).length>0?`<div class="wiki-section"><div class="wiki-section-title">关联事件</div><div class="wiki-tags">${_normLinks(c.relatedEvents).map(el=>{const ev=(state.data.timeline||[]).find(e=>e.id===el.id);const descArg=el.desc?`, '${jsStr(el.desc)}'`:'';return ev?`<span class="wiki-tag item" onclick="showPreviewCard('event','${esc(ev.id)}',event${descArg})" style="cursor:pointer">${esc(ev.name)}</span>`:`<span class="wiki-tag item">${esc(el.id)}</span>`;}).join('')}</div></div>`:''}
     ${_normLinks(c.relatedVolumes).length>0?`<div class="wiki-section"><div class="wiki-section-title">📑 关联卷</div><div class="wiki-tags">${_normLinks(c.relatedVolumes).map(vl=>{const vol=(state.data.outline||[]).find((v,i)=>i===parseInt(vl.id)||v.id===vl.id);return vol?`<span class="wiki-tag item">📖 ${esc(vol.title||'未命名卷')}</span>`:`<span class="wiki-tag item">${esc(vl.id)}</span>`;}).join('')}</div></div>`:''}
+    ${_renderVariantWikiSection('character',c.id)}
   </div>
   <div class="detail-sticky-bar">
     <button class="btn btn-sm btn-outline" onclick="if(state.navigationHistory.length>0)goBack();else{state.selectedCharacterId=null;renderTabContent()}">← 返回</button>
@@ -249,6 +259,8 @@ function renderCharEditForm(c) {
         <button class="btn btn-sm btn-outline" onclick="addCharRelation()">+ 添加关系</button>
       </div>
     </div>
+
+    ${_renderVariantSection('character',c.id,c.name)}
   </div>
   <div class="detail-sticky-bar">
     <div></div>
@@ -276,7 +288,7 @@ function saveCharEdit() {
   }
   _charEditSnapshot = null;
   _charIsNew = false;
-  state.editingCharacter = false; autoSave(); renderTabContent();
+  state.editingCharacter = false; autoSave(); state._forceAnimate=true; state._animateScope='detail'; renderTabContent();
 }
 function cancelCharEdit() {
   if (_charIsNew) {
@@ -284,14 +296,14 @@ function cancelCharEdit() {
     state.selectedCharacterId = null;
     _charIsNew = false;
     _charEditSnapshot = null;
-    autoSave(); renderTabContent(); return;
+    autoSave(); state._forceAnimate=true; state._animateScope='detail'; renderTabContent(); return;
   }
   if (_charEditSnapshot) {
     const c = (state.data.characters||[]).find(ch=>ch.id===state.selectedCharacterId);
     if (c) Object.assign(c, _charEditSnapshot);
     _charEditSnapshot = null;
   }
-  state.editingCharacter = false; renderTabContent();
+  state.editingCharacter = false; state._forceAnimate=true; state._animateScope='detail'; renderTabContent();
 }
 
 function renderRaceSelect(currentRace) {
@@ -444,6 +456,15 @@ function showPreviewCard(type, id, event, contextDesc) {
     detail = (chap.summary||'').substring(0, 100);
     explorerType = 'outline_chapter';
     explorerId = id;
+  } else if (type === 'variant') {
+    const v = _getVariantById(id);
+    if (!v) return;
+    const typeLabel = v.variantType === 'historical' ? '历史形态' : '变体';
+    title = (v.variantType === 'historical' ? '📜' : '🔄') + ' ' + esc(v.name);
+    subtitle = typeLabel;
+    detail = (v.description||'').substring(0, 100);
+    explorerType = 'variant';
+    explorerId = id;
   }
   const navFn = `navigateToExplorerDetail('${esc(explorerType)}','${esc(explorerId)}')`;
   const contextHtml = contextDesc ? `<div style="color:var(--accent);font-size:12px;margin-bottom:6px;padding:4px 8px;background:var(--bg-alt);border-radius:var(--radius-xs);border-left:3px solid var(--accent)">${esc(contextDesc)}</div>` : '';
@@ -515,7 +536,7 @@ function navigateToCharacter(characterId) { pushNavHistory(); state.activeTab = 
 function setupCharacters() {
   registerSearchTarget('charSearch','char-list',renderCharList);
   const charList = $('#char-list');
-  if (charList) { charList.querySelectorAll('.char-list-item').forEach(item=>{item.onclick=(ev)=>{if(ev.target.closest('.drag-handle'))return;state.selectedCharacterId=item.dataset.charId;state.editingCharacter=false;state._forceAnimate=true;state._animateScope='detail';renderTabContent();};});}
+  if (charList) { charList.querySelectorAll('.char-list-item').forEach(item=>{item.onclick=(ev)=>{if(ev.target.closest('.drag-handle'))return;state.selectedCharacterId=item.dataset.charId;state.editingCharacter=false;state._selectedVariantId=null;state._editingVariantId=null;state._forceAnimate=true;state._animateScope='detail';renderTabContent();};});}
   setupDragSort({
     containerId: 'char-list',
     itemSelector: '.char-list-item',
@@ -626,7 +647,7 @@ async function addCharRelation() {
       <button class="btn btn-outline" id="char-rel-cancel">取消</button>
       <button class="btn btn-primary" id="char-rel-ok">确定</button>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   return new Promise((resolve) => {
     const finish = (val) => { closeModal(); resolve(val); };
     $('#char-rel-ok').onclick = () => {

@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // 世界生成器 — 关系图表 · UI层
 // 依赖: relations-data.js, relations-graph.js, core/state.js, core/utils.js, core/modal.js
 // ============================================================
@@ -30,8 +30,6 @@ function _getAllListConnections() {
 function _syncRelationList() {
   const list = $('#relation-list');
   if (list) list.innerHTML = renderRelationList();
-  const detail = $('#relation-detail');
-  if (detail) detail.innerHTML = renderRelationDetail();
 }
 
 function _connKey(c) {
@@ -75,7 +73,7 @@ function renderRelations() {
       <div id="relation-list" class="relations-list">${renderRelationList()}</div>
     </div>
     <div class="relation-detail-panel">
-      <div class="card" style="padding-bottom:8px"><h3>🕸️ 关系图表</h3>
+      <div class="relation-graph-header"><h3>🕸️ 关系图表</h3>
         <p class="text-sm text-muted mb-8">勾选主体，自动生成关系图（${edges.length} 条边）· 滚轮缩放 · 右键/中键拖拽画布</p>
         <div class="filter-bar" style="margin-bottom:6px">
           ${filterBtns}
@@ -92,9 +90,8 @@ function renderRelations() {
             <button class="btn btn-xs btn-outline" onclick="graphZoom(0.15)">➕</button>
           </span>
         </div>
-        <div class="relations-canvas-container" style="overflow:hidden;position:relative"><canvas id="relations-canvas" width="800" height="500"></canvas></div>
       </div>
-      <div id="relation-detail">${renderRelationDetail()}</div>
+      <div class="relations-canvas-container" style="overflow:hidden;position:relative"><canvas id="relations-canvas" width="800" height="500"></canvas></div>
     </div></div>`;
 }
 
@@ -138,8 +135,6 @@ function selectConnection(key) {
   state._selectedConnKey = key;
   const list = $('#relation-list');
   if (list) list.innerHTML = renderRelationList();
-  const detail = $('#relation-detail');
-  if (detail) detail.innerHTML = renderRelationDetail();
 }
 
 function _findConnectionByKey(key) {
@@ -302,6 +297,23 @@ function clearGraphNodeSelection() {
 function setupRelations() {
   registerSearchTarget('relSearch','relation-list',renderRelationList);
   try { drawRelationsGraph(); _setupCanvasInteraction(); _playGraphEntrance(); } catch(e) { console.error('drawRelationsGraph error:', e); }
+  const canvas = $('#relations-canvas');
+  const container = canvas?.parentElement;
+  if (canvas && container) {
+    const resizeCanvas = () => {
+      const w = container.clientWidth - 24;
+      const h = container.clientHeight - 24;
+      if (w > 0 && h > 0 && (canvas.width !== w || canvas.height !== h)) {
+        canvas.width = w;
+        canvas.height = h;
+        drawRelationsGraph();
+      }
+    };
+    resizeCanvas();
+    if (typeof ResizeObserver !== 'undefined') {
+      new ResizeObserver(resizeCanvas).observe(container);
+    }
+  }
 }
 
 // ---- CRUD ----
@@ -341,7 +353,7 @@ async function addRelation() {
       <button class="btn btn-outline" id="rel-cancel">取消</button>
       <button class="btn btn-primary" id="rel-ok">确定</button>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   const toTypeSel = document.getElementById('rel-to-type');
   if (toTypeSel && entityTypes.length > 1) toTypeSel.value = secondType.key;
   return new Promise((resolve) => {

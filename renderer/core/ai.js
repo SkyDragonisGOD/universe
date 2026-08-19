@@ -43,7 +43,7 @@ async function showLLMSettings() {
       <button class="btn btn-outline" onclick="closeModal()">取消</button>
       <button class="btn btn-primary" id="btn-save-llm">保存配置</button>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   document.getElementById('btn-save-llm').onclick = async () => {
     await window.api.setLLMConfig({
       endpoint: $('#llm-endpoint').value.trim(),

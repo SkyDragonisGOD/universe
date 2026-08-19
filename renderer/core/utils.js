@@ -179,7 +179,13 @@ function toggleFilterPop(btn) {
   const key = wrap.dataset.filterKey;
   const stateKey = wrap.dataset.stateKey;
   const existingPop = document.getElementById('filter-pop-active');
-  if (existingPop) { existingPop.remove(); if (existingPop.dataset.key === key && existingPop.dataset.stateKey === stateKey) return; }
+  if (existingPop) {
+    if (existingPop.dataset.key === key && existingPop.dataset.stateKey === stateKey) {
+      _closeFilterPop(existingPop);
+      return;
+    }
+    _closeFilterPop(existingPop);
+  }
   const pop = wrap.querySelector('.filter-pop');
   const clone = pop.cloneNode(true);
   clone.id = 'filter-pop-active';
@@ -244,7 +250,14 @@ function filterPopChange(checkbox) {
     state[stateKey][key] = state[stateKey][key].filter(id => id !== checkbox.value);
   }
   const label = checkbox.closest('label');
-  if (label) label.classList.toggle('checked', checkbox.checked);
+  if (label) {
+    label.classList.toggle('checked', checkbox.checked);
+    const animClass = checkbox.checked ? 'pop-check' : 'pop-uncheck';
+    label.classList.remove('pop-check', 'pop-uncheck');
+    void label.offsetWidth;
+    label.classList.add(animClass);
+    label.addEventListener('animationend', () => label.classList.remove(animClass), { once: true });
+  }
   renderTabContent();
 }
 
@@ -352,13 +365,18 @@ function setupDragSort(config) {
   document.addEventListener('mouseup', window['_dsMU_' + ns]);
 }
 
+function _closeFilterPop(p) {
+  if (!p || p.classList.contains('closing')) return;
+  p.classList.add('closing');
+  const ref = p;
+  ref.addEventListener('animationend', () => { if (ref.parentNode) ref.remove(); }, { once: true });
+}
+
 document.addEventListener('click', (e) => {
   if (!e.target.closest('.filter-pop-wrap') && !e.target.closest('#filter-pop-active')) {
-    const p = document.getElementById('filter-pop-active');
-    if (p) p.remove();
+    _closeFilterPop(document.getElementById('filter-pop-active'));
   }
 });
 document.addEventListener('scroll', () => {
-  const p = document.getElementById('filter-pop-active');
-  if (p) p.remove();
+  _closeFilterPop(document.getElementById('filter-pop-active'));
 }, true);

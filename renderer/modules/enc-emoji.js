@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // 世界百科 — Emoji 选择器
 // ============================================================
 
@@ -19,7 +19,7 @@ function openEncyclopediaEmojiPicker() {
       <button class="btn btn-outline" onclick="closeModal()">取消</button>
       <button class="btn btn-primary" id="enc-emoji-ok-btn">确定</button>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   $('#enc-emoji-ok-btn').onclick = () => { selectEncyclopediaEmoji(($('#enc-emoji-custom-input') || {}).value || '📦'); };
   overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
 }
@@ -49,7 +49,7 @@ function openEncyclopediaCatIconPicker(catId) {
       <button class="btn btn-outline" onclick="closeModal()">取消</button>
       <button class="btn btn-primary" id="enc-cat-icon-ok">确定</button>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   $('#enc-cat-icon-ok').onclick = () => { selectEncyclopediaCatIcon(catId, ($('#enc-cat-icon-custom') || {}).value || '📁'); };
   overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
 }
@@ -82,7 +82,7 @@ function openEncyclopediaSubIconPicker(subId) {
       <button class="btn btn-outline" onclick="closeModal()">取消</button>
       <button class="btn btn-primary" id="enc-sub-icon-ok">确定</button>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   $('#enc-sub-icon-ok').onclick = () => { selectEncyclopediaSubIcon(subId, ($('#enc-sub-icon-custom') || {}).value || '📂'); };
   overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
 }

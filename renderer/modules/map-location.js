@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // 架空地图 — 地点标注管理
 // ============================================================
 
@@ -31,10 +31,13 @@ function _mapShowLocCard(locId, pixiEvent) {
 async function _mapPlaceLocation(worldX, worldY) {
   const locs = state.data.locations || [];
   if (locs.length === 0) { showToast('暂无地点，请先创建'); return; }
-  const items = locs.map(l => ({ id: l.id, name: l.name }));
+  const md = _ensureMapData();
+  const territoryLocIds = new Set((md.territories || []).flatMap(t => t.locationIds || []));
+  const available = locs.filter(l => !territoryLocIds.has(l.id));
+  if (available.length === 0) { showToast('所有地点已归属领地，无可标注地点'); return; }
+  const items = available.map(l => ({ id: l.id, name: l.name }));
   const result = await customSelectModal('📍 选择要标注的地点', items, []);
   if (!result || result.length === 0) return;
-  const md = _ensureMapData();
   const existing = md.locationMarkers.findIndex(m => m.locationId === result[0]);
   if (existing >= 0) md.locationMarkers.splice(existing, 1);
   md.locationMarkers.push({ locationId: result[0], x: Math.round(worldX * 10) / 10, y: Math.round(worldY * 10) / 10, icon: '📍' });
@@ -148,7 +151,7 @@ function _mapOpenLocIconPicker(currentIcon) {
         <button class="btn btn-outline" onclick="closeModal();_mapLocIconPickerResolve=null">取消</button>
         <button class="btn btn-primary" id="map-loc-icon-ok">确定</button>
       </div>`;
-    overlay.classList.remove('hidden');
+    showModalOverlay();
     window._mapLocIconPickerResolve = resolve;
     window._mapSelectLocIcon = (emoji) => {
       window._mapLocIconPickerResolve(emoji);

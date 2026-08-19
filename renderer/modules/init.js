@@ -48,4 +48,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   let resizeTimer;
   window.addEventListener('resize', () => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => { const nav = document.querySelector('#tab-nav'); if (!nav) return; const a = nav.querySelector('.nav-item.is-active'); if (a) moveActiveBox(a, false); }, 150); });
+
+  if (typeof initWikiLinkSystem === 'function') initWikiLinkSystem();
 });

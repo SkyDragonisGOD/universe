@@ -1,5 +1,47 @@
 # 世界生成器 - 开发日志
 
+## v1.9.5 (2026-08-19)
+
+### 变体系统 — 编辑页复用本体表单 + 选中态分离 + 右键新建 + 重名检测
+
+- **变体编辑页复用本体表单**：变体编辑不再使用独立字段界面，而是调用本体对应的编辑表单函数（`renderCharEditForm`、`renderFactionEditForm`、`renderLocationEditForm`、`renderRaceEditForm`、`renderEventEditForm`），通过 `_buildVariantProxy` 构造虚拟实体对象传入，数据不继承本体、仅使用变体自身数据
+- **回调重写**：`_rewriteVariantEditCallbacks` 将本体表单中的 `updateCharacter('`、`updateCharDim('`、`setCharCustomProp('` 等回调替换为变体专用 `_variantEditUpdate`、`_variantEditDimUpdate`、`_variantEditCustomProp`，确保修改写入变体对象而非本体
+- **变体字段移除**：变体编辑页自动移除"🔄 历史形态 / 变体"section（通过标记定位 + div 深度匹配算法精确删除整个 card），变体编辑页不显示变体字段
+- **底部按钮栏替换**：移除本体编辑的保存/取消栏，替换为变体专用的"取消 / 🗑️ 删除 / 💾 保存"按钮栏
+- **变体类型标识头**：编辑页顶部插入标识条（如"🔄 编辑变体 — 张三 的变体"），区分本体编辑与变体编辑
+
+### 变体系统 — 选中态分离
+
+- **选中变体时本体不选中**：所有模块（characters、factions、locations、races、events）的列表项选中条件增加 `&&!state._selectedVariantId` 判断，选中变体时本体列表项不再显示 `selected` 状态
+- **变体列表项选中效果**：`_renderVariantListItems` 中根据 `state._selectedVariantId === v.id` 添加 `selected` 类，选中效果在变体项上
+- **变体列表项圆角矩形**：变体列表项从 `border-bottom` 分隔线改为圆角矩形样式（`margin:2px 4px; border-radius:var(--radius-sm); border:1px solid var(--border-subtle)`），选中时边框变黑 + 阴影突出
+
+### 变体系统 — 右键新建变体
+
+- **右键菜单**：所有实体列表项添加 `oncontextmenu` 事件，调用 `_showEntityCtxMenu` 显示浮动菜单，提供"🔄 新建变体"和"📜 新建历史形态"两个选项
+- **直接创建**：`_createVariantWithType` 跳过类型选择弹窗，直接以指定类型创建变体，创建后自动进入编辑状态
+- **覆盖模块**：characters、factions、locations、races、narrative-events、items 六个模块均已添加右键菜单支持
+
+### 变体系统 — 重名检测
+
+- **创建时重名检测**：`_createVariant` 和 `_createVariantWithType` 中添加全局变体重名检测，同名时 toast 提示并阻止创建
+- **编辑时重名检测**：`_variantEditUpdate` 中 name 字段修改时检测是否与其他变体同名，同名时 toast 提示并阻止修改
+
+### 变体系统 — 导航与滚动位置
+
+- **取消编辑回到本体**：`_cancelEditVariant` 新增 `state._selectedVariantId = null`，取消变体编辑后回到本体编辑界面（而非变体详情页），并通过 `_restoreDetailScrollPos` 恢复跳转前滚动位置
+- **本体编辑界面点击变体直接跳转编辑页**：`_renderVariantSection` 中变体项的 onclick 改为 `_startEditVariant`，点击即进入编辑
+- **滚动位置保存/恢复**：`_saveDetailScrollPos` / `_restoreDetailScrollPos` 使用 `state._detailScrollMap` 按实体 key 存储滚动位置，在跳转前保存、返回后恢复
+
+### 变体系统 — 详情页变体显示修复
+
+- **本体详情页变体分区显示**：`_renderVariantWikiSection` 将变体分为"📜 历史形态"和"🔄 变体"两个 section 分别显示，修复之前只显示历史人物不显示变体的问题
+
+### CSS 新增/修改
+
+- `.variant-list-item` 添加 `transition: background 0.15s, box-shadow 0.15s`
+- `.variant-list-item.selected` 添加 `border-color: var(--black) !important; box-shadow: 0 2px 8px rgba(0,0,0,0.15)`
+
 ## v1.9.4 (2026-08-18)
 
 ### 项目概览 — 展示/编辑模式 + 标签系统

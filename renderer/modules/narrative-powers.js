@@ -107,12 +107,12 @@ function openPowerLevelDetail(pi, li) {
         <div class="wiki-field"><span class="wiki-label">等级序号</span><span class="wiki-value">${li+1}</span></div>
         <div class="wiki-field"><span class="wiki-label">等级名称</span><span class="wiki-value">${esc(le.name||'未命名')}</span></div>
       </div>
-      ${le.desc?`<div class="wiki-section"><div class="wiki-section-title">简述</div><div class="wiki-value">${esc(le.desc)}</div></div>`:`<div class="wiki-section"><div class="wiki-section-title">简述</div><div class="text-xs text-muted">暂无简述</div></div>`}
+      ${le.desc?`<div class="wiki-section"><div class="wiki-section-title">简述</div><div class="wiki-value">${_renderLinkedContent(le.desc)}</div></div>`:`<div class="wiki-section"><div class="wiki-section-title">简述</div><div class="text-xs text-muted">暂无简述</div></div>`}
       <div class="modal-actions" style="margin-top:16px">
         <button class="btn btn-outline" onclick="closeModal()">关闭</button>
       </div>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
 }
 async function openPowerRelModal(i) {
@@ -122,7 +122,7 @@ async function openPowerRelModal(i) {
     const overlay = $('#modal-overlay');
     const modal = $('#modal-box');
     modal.innerHTML = `<h3>关联力量体系</h3><div class="modal-select-list" style="max-height:300px;overflow-y:auto"><div class="text-xs text-muted" style="padding:8px">暂无其他力量体系</div></div><div class="modal-actions"><button class="btn btn-primary" id="custom-link-ok">确定</button></div>`;
-    overlay.classList.remove('hidden');
+    showModalOverlay();
     let resolved = false;
     $('#custom-link-ok').onclick = () => { if (!resolved) { resolved = true; closeModal(); } };
     overlay.onclick = (e2) => { if (e2.target === overlay && !resolved) { resolved = true; closeModal(); } };

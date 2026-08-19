@@ -20,10 +20,19 @@ function renderLocationList() {
   const locs = allLocs.filter(l => matchSearch(l.name, 'locSearch'));
   if (allLocs.length===0) return '<div class="empty-state"><div class="icon">📍</div><p>暂无地点</p></div>';
   return (locs.length===0?'<div class="empty-state"><div class="icon">🔍</div><p>无匹配地点</p></div>':locs.map(l=>{
-    return`<div class="location-card${state.selectedLocationId===l.id?' selected':''}" data-loc-id="${l.id}"><div class="flex-between"><div style="display:flex;align-items:center;gap:6px"><span class="drag-handle" style="cursor:grab;font-size:10px;color:var(--muted);user-select:none">⠿</span><span class="loc-name">${esc(l.name)}</span></div><button class="btn btn-xs btn-danger" onclick="event.stopPropagation();deleteLocation('${l.id}')">×</button></div><div class="loc-desc">${esc((l.description||'').slice(0,100))}</div>${l.category&&l.category!=='未知'?`<div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(l.category)}</div>`:''}</div>`;}).join(''));
+    return`<div class="location-card${state.selectedLocationId===l.id&&!state._selectedVariantId?' selected':''}" data-loc-id="${l.id}" oncontextmenu="event.preventDefault();_showEntityCtxMenu(event,'location','${esc(l.id)}')"><div class="flex-between"><div style="display:flex;align-items:center;gap:6px"><span class="drag-handle" style="cursor:grab;font-size:10px;color:var(--muted);user-select:none">⠿</span><span class="loc-name">${esc(l.name)}${_renderVariantDropdown('location',l.id,l.name)}</span></div><button class="btn btn-xs btn-danger" onclick="event.stopPropagation();deleteLocation('${l.id}')">×</button></div><div class="loc-desc">${esc((l.description||'').slice(0,100))}</div>${l.category&&l.category!=='未知'?`<div style="font-size:11px;color:var(--muted);margin-top:2px">${esc(l.category)}</div>`:''}</div>${_renderVariantListItems('location',l.id)}`;}).join(''));
 }
 
 function renderLocationDetail() {
+  if (state._selectedVariantId) {
+    const v = _getVariantById(state._selectedVariantId);
+    if (v && v.parentType === 'location' && v.parentId === state.selectedLocationId) {
+      if (state._editingVariantId === v.id) return _renderVariantEditPage(v);
+      return _renderVariantDetailPage(v);
+    }
+    state._selectedVariantId = null;
+    state._editingVariantId = null;
+  }
   const loc = (state.data.locations||[]).find(l=>l.id===state.selectedLocationId);
   if (!loc) return '<div class="empty-state"><div class="icon">📍</div><p>选择一个地点查看详情</p></div>';
   if (state.editingLocation) return renderLocationEditForm(loc);
@@ -52,12 +61,13 @@ function renderLocationWikiView(loc) {
       </div>
       ${customPropHtml?`<div style="margin-top:4px">${customPropHtml}</div>`:''}
     </div>
-    ${loc.description?`<div class="wiki-section"><div class="wiki-section-title">描述</div><div class="wiki-value">${esc(loc.description)}</div></div>`:''}
+    ${loc.description?`<div class="wiki-section"><div class="wiki-section-title">描述</div><div class="wiki-value">${_renderLinkedContent(loc.description)}</div></div>`:''}
     ${locChars.length>0?`<div class="wiki-section"><div class="wiki-section-title">关联角色</div><div class="wiki-tags">${locChars.map(ch=>{const descArg=ch._desc?`, '${jsStr(ch._desc)}'`:'';return`<span class="wiki-tag skill" onclick="showPreviewCard('character','${esc(ch.id)}',event${descArg})" style="cursor:pointer">${esc(ch.name)}</span>`;}).join('')}</div></div>`:''}
     ${locEvents.length>0?`<div class="wiki-section"><div class="wiki-section-title">关联事件</div><div class="wiki-tags">${locEvents.map(ev=>{const descArg=ev._desc?`, '${jsStr(ev._desc)}'`:'';return`<span class="wiki-tag item" onclick="showPreviewCard('event','${esc(ev.id)}',event${descArg})" style="cursor:pointer">${esc(ev.name)}</span>`;}).join('')}</div></div>`:''}
     ${locFactions.length>0?`<div class="wiki-section"><div class="wiki-section-title">关联势力</div><div class="wiki-tags">${locFactions.map(fa=>{const descArg=fa._desc?`, '${jsStr(fa._desc)}'`:'';return`<span class="wiki-tag item" onclick="showPreviewCard('faction','${esc(fa.id)}',event${descArg})" style="cursor:pointer">${esc(fa.name)}</span>`;}).join('')}</div></div>`:''}
     ${(loc.backpackItems && Object.keys(loc.backpackItems).some(k=>(loc.backpackItems[k]||[]).length>0))?`<div class="wiki-section"><div class="wiki-section-title">🎲 背包物品</div>${Object.entries(loc.backpackItems).filter(([bpId,itemIds])=>itemIds.length>0).map(([bpId,itemIds])=>{const bp=(state.data.worldBackpacks||[]).find(b=>b.id===bpId);if(!bp)return'';const bpItems=(state.data.items||[]).filter(i=>i.backpackId===bpId&&itemIds.includes(i.id));return bpItems.length>0?`<div style="margin-bottom:4px"><span style="font-size:11px;color:var(--muted)">${esc(bp.name)}:</span> <div class="wiki-tags" style="display:inline-flex">${bpItems.map(it=>`<span class="wiki-tag item" style="cursor:pointer" onclick="showPreviewCard('item','${esc(it.id)}',event)">${it.icon||'📦'} ${esc(it.name)}</span>`).join('')}</div></div>`:'';}).join('')}</div>`:''}
     ${_normLinks(loc.relatedVolumes).length>0?`<div class="wiki-section"><div class="wiki-section-title">📑 关联卷</div><div class="wiki-tags">${_normLinks(loc.relatedVolumes).map(vl=>{const vol=(state.data.outline||[]).find((v,i)=>i===parseInt(vl.id)||v.id===vl.id);return vol?`<span class="wiki-tag item">📖 ${esc(vol.title||'未命名卷')}</span>`:`<span class="wiki-tag item">${esc(vl.id)}</span>`;}).join('')}</div></div>`:''}
+    ${_renderVariantWikiSection('location',loc.id)}
   </div>
   <div class="detail-sticky-bar">
     <button class="btn btn-sm btn-outline" onclick="state.selectedLocationId=null;renderTabContent()">← 返回</button>
@@ -142,6 +152,8 @@ function renderLocationEditForm(loc) {
         ${_normLinks(loc.relatedVolumes).length>0?`<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px">${_normLinks(loc.relatedVolumes).map(vl=>{const vol=(state.data.outline||[]).find((v,i)=>i===parseInt(vl.id)||v.id===vl.id);return vol?`<span class="wiki-tag item">📖 ${esc(vol.title||'未命名卷')}<button class="btn btn-xs btn-icon btn-danger" style="font-size:8px;margin-left:2px" onclick="removeLocVolume('${esc(vl.id)}')">×</button></span>`:'';}).join('')}</div>`:''}
       </div>
     </div>
+
+    ${_renderVariantSection('location',loc.id,loc.name)}
   </div>
   <div class="detail-sticky-bar">
     <div></div>
@@ -160,21 +172,21 @@ function startLocationEdit() {
   _locIsNew = false;
   state.editingLocation = true; state._forceAnimate=true; state._animateScope='detail'; renderTabContent();
 }
-function saveLocationEdit() { _locEditSnapshot = null; _locIsNew = false; state.editingLocation = false; autoSave(); renderTabContent(); }
+function saveLocationEdit() { _locEditSnapshot = null; _locIsNew = false; state.editingLocation = false; autoSave(); state._forceAnimate=true; state._animateScope='detail'; renderTabContent(); }
 function cancelLocationEdit() {
   if (_locIsNew) {
     state.data.locations = (state.data.locations||[]).filter(l=>l.id!==state.selectedLocationId);
     state.selectedLocationId = null;
     _locIsNew = false;
     _locEditSnapshot = null;
-    autoSave(); renderTabContent(); return;
+    autoSave(); state._forceAnimate=true; state._animateScope='detail'; renderTabContent(); return;
   }
   if (_locEditSnapshot) {
     const loc = (state.data.locations||[]).find(l=>l.id===state.selectedLocationId);
     if (loc) Object.assign(loc, _locEditSnapshot);
     _locEditSnapshot = null;
   }
-  state.editingLocation = false; renderTabContent();
+  state.editingLocation = false; state._forceAnimate=true; state._animateScope='detail'; renderTabContent();
 }
 
 function removeLocChar(cid) { const loc=(state.data.locations||[]).find(l=>l.id===state.selectedLocationId); if (!loc) return; const oldIds=_linkIds(loc.relatedCharacters); loc.relatedCharacters=_removeLink(loc.relatedCharacters,cid); syncLink('location',loc.id,'relatedCharacters',_linkIds(loc.relatedCharacters),'',oldIds); autoSave(); if (state.editingLocation) { const detail=$('#location-detail'); if(detail) detail.innerHTML=renderLocationEditForm(loc); } }
@@ -221,7 +233,7 @@ function findTag(tags,id) { for (const t of tags) { if (t.id===id) return t; if 
 function setupLocations() {
   registerSearchTarget('locSearch','location-list',renderLocationList);
   const locList = $('#location-list');
-  if (locList) { locList.querySelectorAll('.location-card').forEach(c=>{c.onclick=(ev)=>{if(ev.target.closest('.drag-handle')||ev.target.closest('button'))return;state.selectedLocationId=c.dataset.locId;state.editingLocation=false;state._forceAnimate=true;state._animateScope='detail';renderTabContent();};});}
+  if (locList) { locList.querySelectorAll('.location-card').forEach(c=>{c.onclick=(ev)=>{if(ev.target.closest('.drag-handle')||ev.target.closest('button'))return;state.selectedLocationId=c.dataset.locId;state.editingLocation=false;state._selectedVariantId=null;state._editingVariantId=null;state._forceAnimate=true;state._animateScope='detail';renderTabContent();};});}
   setupDragSort({
     containerId: 'location-list',
     itemSelector: '.location-card',

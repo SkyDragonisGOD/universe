@@ -36,7 +36,7 @@ function openAddTemplateCategoryModal() {
       <button class="btn btn-outline" onclick="closeModal()">取消</button>
       <button class="btn btn-primary" onclick="applyAddTemplateCategories()">添加</button>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
 }
 

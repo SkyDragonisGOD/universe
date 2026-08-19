@@ -21,16 +21,24 @@ function animatePageContent(scope) {
   const container = $('#tab-content');
   if (!container) return;
   ScrollTrigger.getAll().forEach(function(st) { st.kill(); });
-  if (scope !== 'detail') {
-    container.querySelectorAll('.tag-tree-panel, .location-panel, .char-list-panel, .faction-list-panel, .item-list-panel, .race-list-panel').forEach(function(panel, i) {
+  if (scope === 'full') {
+    container.querySelectorAll('.tag-tree-panel, .location-panel, .char-list-panel, .faction-list-panel, .item-list-panel, .race-list-panel, .encyclopedia-cat-panel').forEach(function(panel, i) {
       gsap.fromTo(panel, { y: 40, opacity: 0 }, { y: 0, opacity: 1, duration: 0.7, delay: i * 0.06, ease: 'power3.out' });
     });
+    container.querySelectorAll('.encyclopedia-layout').forEach(function(el, i) {
+      animatedContent(el, { distance: 30, duration: 0.6, delay: 0.05 + i * 0.05, ease: 'power3.out' });
+    });
   }
-  container.querySelectorAll('.char-detail-panel, .faction-detail-panel, .item-detail-panel, .race-detail-panel, .location-detail-panel, .wiki-page').forEach(function(panel, i) {
+  if (scope !== 'detail') {
+    container.querySelectorAll('.encyclopedia-sub-panel').forEach(function(panel, i) {
+      animatedContent(panel, { distance: 40, duration: 0.7, delay: i * 0.06, ease: 'power3.out' });
+    });
+  }
+  container.querySelectorAll('.char-detail-panel, .faction-detail-panel, .item-detail-panel, .race-detail-panel, .location-detail-panel, .wiki-page, .encyclopedia-item-panel').forEach(function(panel, i) {
     animatedContent(panel, { distance: 40, duration: 0.7, delay: i * 0.06, ease: 'power3.out' });
   });
-  container.querySelectorAll('.card, .worldview-section, .constitution-entry, .encyclopedia-layout, .kanban-column, .explorer-card, .fmap-layout, .fmap-toolbar, .fmap-sidebar-section, .fmap-stats-content, .relation-layout, .relation-list-panel, .relation-detail-panel').forEach(function(el, i) {
-    if (el.closest('.char-detail-panel, .faction-detail-panel, .item-detail-panel, .race-detail-panel, .location-detail-panel, .wiki-page')) { gsap.set(el, { opacity: 1, y: 0, x: 0, visibility: 'visible' }); return; }
+  container.querySelectorAll('.card, .worldview-section, .constitution-entry, .kanban-column, .explorer-card, .fmap-layout, .fmap-toolbar, .fmap-sidebar-section, .fmap-stats-content, .relation-layout, .relation-list-panel, .relation-detail-panel').forEach(function(el, i) {
+    if (el.closest('.char-detail-panel, .faction-detail-panel, .item-detail-panel, .race-detail-panel, .location-detail-panel, .wiki-page, .encyclopedia-sub-panel, .encyclopedia-item-panel')) { gsap.set(el, { opacity: 1, y: 0, x: 0, visibility: 'visible' }); return; }
     animatedContent(el, { distance: 30, duration: 0.6, delay: 0.05 + i * 0.05, ease: 'power3.out' });
   });
   container.querySelectorAll('.wiki-title').forEach(function(el) {

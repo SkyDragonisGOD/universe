@@ -1,4 +1,4 @@
-// ============================================================
+﻿// ============================================================
 // 世界百科 — 绑定/解绑功能
 // ============================================================
 
@@ -121,7 +121,7 @@ function openBindEncyclopediaModal(catType) {
     <div class="modal-actions">
       <button class="btn btn-outline" onclick="closeModal()">取消</button>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
 }
 
@@ -168,7 +168,7 @@ function openBindSubPicker() {
       <h3>🔗 绑定属性类型</h3>
       <div class="empty-state" style="padding:24px"><div class="icon">🔗</div><p>当前大类下所有子类均已绑定</p></div>
       <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal()">关闭</button></div>`;
-    overlay.classList.remove('hidden');
+    showModalOverlay();
     overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
     return;
   }
@@ -192,7 +192,7 @@ function openBindSubPicker() {
       <button class="btn btn-xs btn-outline" onclick="createSubAndBindType()">创建并绑定</button>
     </div>
     <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal()">取消</button></div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
 }
 
@@ -228,7 +228,7 @@ function openBindTypePickerForSub(subId) {
       <h3>🔗 绑定属性类型</h3>
       <div class="empty-state" style="padding:24px"><div class="icon">🔗</div><p>所有属性类型已绑定</p></div>
       <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal()">关闭</button></div>`;
-    overlay.classList.remove('hidden');
+    showModalOverlay();
     overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
     return;
   }
@@ -246,7 +246,7 @@ function openBindTypePickerForSub(subId) {
     }).join('')}
     </div>
     <div class="modal-actions"><button class="btn btn-outline" onclick="closeModal()">取消</button></div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
 }
 

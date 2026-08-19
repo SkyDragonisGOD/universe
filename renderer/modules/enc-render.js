@@ -139,7 +139,7 @@ function showEncyclopediaItemDetail(itemId) {
       <button class="btn btn-outline" onclick="closeModal()">关闭</button>
       <button class="btn btn-primary" onclick="closeModal();editEncyclopediaItem('${item.id}')">✏️ 编辑</button>
     </div>`;
-  overlay.classList.remove('hidden');
+  showModalOverlay();
   overlay.onclick = (e) => { if (e.target === overlay) closeModal(); };
 }
 
